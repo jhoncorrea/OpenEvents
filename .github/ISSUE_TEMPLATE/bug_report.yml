@@ -1,0 +1,107 @@
+name: Reportar un error
+description: Informa un comportamiento incorrecto o inesperado en OpenEvents.
+title: "[Bug]: "
+labels:
+  - bug
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por ayudarnos a mejorar OpenEvents.
+        Completa la información necesaria para reproducir el problema.
+
+  - type: checkboxes
+    id: existing-issue
+    attributes:
+      label: Verificaciones previas
+      description: Confirma que revisaste los Issues existentes.
+      options:
+        - label: Busqué el problema y no encontré un Issue duplicado.
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción del problema
+      description: Explica claramente qué ocurrió.
+      placeholder: Describe el comportamiento incorrecto.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Pasos para reproducirlo
+      description: Indica la secuencia exacta que permite reproducir el error.
+      placeholder: |
+        1. Abrir...
+        2. Seleccionar...
+        3. Introducir...
+        4. Observar...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado
+      description: Explica qué debería haber ocurrido.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Resultado actual
+      description: Explica qué ocurrió realmente.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área afectada
+      description: Selecciona el componente relacionado con el problema.
+      options:
+        - Web
+        - API
+        - Base de datos
+        - Autenticación
+        - CI/CD
+        - Azure
+        - Documentación
+        - No estoy seguro
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Entorno
+      description: Proporciona las versiones y el sistema donde ocurrió.
+      value: |
+        - Sistema operativo:
+        - Navegador:
+        - Node.js:
+        - pnpm:
+        - Ambiente: local/development/production
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidencias o logs
+      description: Adjunta capturas o incluye logs sin contraseñas, tokens ni datos personales.
+      placeholder: Arrastra aquí capturas o archivos relevantes.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Seguridad y privacidad
+      options:
+        - label: Confirmo que eliminé secretos y datos personales de las evidencias.
+          required: true
