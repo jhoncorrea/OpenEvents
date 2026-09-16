@@ -33,6 +33,31 @@ pnpm dev
 
 Código QR de demostración: `OE-2027-001`.
 
+### Variables de entorno
+
+Los archivos `.env` son opcionales para el desarrollo local. Si no existen, las aplicaciones utilizan valores predeterminados.
+
+Para personalizar la configuración en PowerShell:
+
+```powershell
+Copy-Item .\apps\api\.env.example .\apps\api\.env
+Copy-Item .\apps\web\.env.example .\apps\web\.env
+```
+
+El primer comando crea la configuración local de la API a partir de su ejemplo. El segundo hace lo mismo para la aplicación web. Los archivos `.env` resultantes están excluidos de Git y no deben versionarse.
+
+| Aplicación | Variable | Valor predeterminado | Descripción |
+|---|---|---|---|
+| API | `PORT` | `3001` | Puerto TCP utilizado por Fastify. Debe ser un entero entre 1 y 65535. |
+| API | `HOST` | `127.0.0.1` | Dirección en la que escucha la API. |
+| Web | `VITE_API_URL` | `http://localhost:3001` | URL HTTP o HTTPS utilizada por la web para comunicarse con la API. |
+
+La API carga opcionalmente `apps/api/.env` y valida la configuración antes de iniciar. La web carga `apps/web/.env` mediante Vite y valida `VITE_API_URL`.
+
+Las variables con prefijo `VITE_` son públicas y quedan incluidas en el código enviado al navegador. Nunca deben contener contraseñas, tokens ni otros secretos.
+
+En producción, las variables deben ser proporcionadas por la plataforma de ejecución. Las variables del entorno del sistema tienen prioridad sobre el archivo `.env`.
+
 ## Comandos
 
 ```bash
