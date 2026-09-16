@@ -1,0 +1,108 @@
+name: Solicitar una funcionalidad
+description: Propón una mejora o nueva capacidad para OpenEvents.
+title: "[Feature]: "
+labels:
+  - enhancement
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por proponer una mejora para OpenEvents.
+        Describe primero el problema o necesidad antes de plantear la solución.
+
+  - type: checkboxes
+    id: existing-request
+    attributes:
+      label: Verificaciones previas
+      description: Confirma que revisaste las solicitudes existentes.
+      options:
+        - label: Busqué la propuesta y no encontré un Issue equivalente.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema o necesidad
+      description: Explica qué problema debería resolver esta funcionalidad.
+      placeholder: Como organizador u operador, necesito...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solución propuesta
+      description: Describe cómo imaginas que podría funcionar.
+      placeholder: La aplicación debería permitir...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: user
+    attributes:
+      label: Usuario beneficiado
+      description: Selecciona el usuario principal de esta funcionalidad.
+      options:
+        - Administrador
+        - Organizador
+        - Operador de check-in
+        - Asistente
+        - Mantenedor
+        - Varios usuarios
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área relacionada
+      options:
+        - Web
+        - API
+        - Base de datos
+        - Autenticación
+        - Check-in y QR
+        - Dashboard
+        - CI/CD
+        - Azure
+        - Documentación
+        - No estoy seguro
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación propuestos
+      description: Indica cómo podríamos comprobar que la funcionalidad está terminada.
+      placeholder: |
+        - Dado...
+        - Cuando...
+        - Entonces...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Describe otras soluciones o formas de resolver la necesidad.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Contexto adicional
+      description: Añade diagramas, capturas, referencias o información relevante.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Validación de alcance
+      options:
+        - label: Entiendo que la propuesta será evaluada contra el alcance y las prioridades del MVP.
+          required: true
