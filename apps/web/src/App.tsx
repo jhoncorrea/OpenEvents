@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
+import { webConfig } from "./config";
 
 type ResultStatus = "idle" | "loading" | "accepted" | "duplicate" | "invalid" | "error";
 
@@ -20,7 +21,7 @@ interface CheckInResult {
   checkedInAt?: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+const API_URL = webConfig.apiUrl;
 
 const activity = [
   { initials: "AM", name: "Ana María Torres", time: "09:41", lane: "Ingreso 2" },

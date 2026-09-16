@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { z } from "zod";
 import { registerCheckIn } from "./check-in.js";
+import { parseApiConfig } from "./config.js";
 
 const app = Fastify({ logger: true });
 
@@ -44,7 +45,6 @@ app.post("/api/check-ins", async (request, reply) => {
   return reply.code(result.status === "invalid" ? 404 : 200).send(result);
 });
 
-const port = Number(process.env.PORT ?? 3001);
-const host = process.env.HOST ?? "127.0.0.1";
+const { port, host } = parseApiConfig(process.env);
 
 await app.listen({ port, host });
