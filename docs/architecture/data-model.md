@@ -118,5 +118,5 @@ erDiagram
 
 ## 5. Migraciones
 
-El esquema se administrará mediante una herramienta de migraciones versionadas. La selección entre Prisma, Drizzle u otra alternativa se realizará en un ADR específico antes de implementar persistencia.
+El esquema se administrará mediante Drizzle ORM, Drizzle Kit y migraciones SQL versionadas. La decisión, las alternativas y la estrategia de aplicación se documentan en [ADR-004](../adr/ADR-004-orm-y-migraciones.md).
 

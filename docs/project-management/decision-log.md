@@ -17,12 +17,12 @@
 | DEC-013 | 2026-09-15 | Offline completo queda fuera del MVP. | Aceptada | Se preparará contingencia operativa y se reevaluará. |
 | DEC-014 | 2026-09-15 | El código existente se clasifica como Iteración 0/spike. | Aceptada | Sirve como aprendizaje; se refactoriza incrementalmente. |
 | DEC-015 | 2026-09-15 | La implementación formal del dominio inicia con persistencia. | Aceptada | Evita seguir ampliando datos simulados. |
+| DEC-016 | 2026-09-17 | Drizzle ORM + Drizzle Kit + `pg` para persistencia y migraciones. | Aceptada para MVP | Ver ADR-004; migraciones SQL versionadas y revisables. |
 
 ## Decisiones pendientes
 
 | ID | Pregunta | Fecha límite sugerida | Mecanismo |
 |---|---|---|---|
-| PEND-001 | ¿Prisma, Drizzle u otra herramienta de migración/ORM? | Antes de OE-006 | ADR-004 |
 | PEND-002 | ¿Cuál será la política exacta de retención de PII? | Antes del ambiente Production | Política + ADR si afecta diseño |
 | PEND-003 | ¿Cómo se distribuirán los QR en el piloto? | Antes de EP-07 | Decisión de producto |
 | PEND-004 | ¿Qué contingencia mínima se usará sin internet? | Antes de la simulación | Runbook + prueba |
