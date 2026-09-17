@@ -8,7 +8,7 @@ erDiagram
     EVENT ||--o{ EVENT_STAFF : assigns
     EVENT ||--o{ REGISTRATION : contains
     ATTENDEE ||--o{ REGISTRATION : owns
-    REGISTRATION ||--|| QR_CREDENTIAL : has
+    REGISTRATION ||--o| QR_CREDENTIAL : has
     REGISTRATION ||--o| CHECK_IN : produces
     USER ||--o{ CHECK_IN : performs
     USER ||--o{ AUDIT_LOG : creates
@@ -92,7 +92,7 @@ erDiagram
 | Restricción | Propósito |
 |---|---|
 | `UNIQUE(event_id, attendee_id)` en `registration` | Evitar doble inscripción accidental al mismo evento |
-| `UNIQUE(registration_id)` en `qr_credential` | Un QR activo base por inscripción |
+| `UNIQUE(registration_id)` en `qr_credential` | Como máximo una credencial por inscripción, independientemente de su estado |
 | `UNIQUE(token_hash)` en `qr_credential` | Evitar credenciales repetidas |
 | `UNIQUE(registration_id)` en `check_in` | Garantizar un solo ingreso en el MVP |
 | `PRIMARY KEY(event_id, user_id)` en `event_staff` | Evitar asignaciones duplicadas |
@@ -120,3 +120,56 @@ erDiagram
 
 El esquema se administrará mediante Drizzle ORM, Drizzle Kit y migraciones SQL versionadas. La decisión, las alternativas y la estrategia de aplicación se documentan en [ADR-004](../adr/ADR-004-orm-y-migraciones.md).
 
+## 6. Decisiones de implementación inicial — OE-007
+
+### Identificadores y campos obligatorios
+
+- Las tablas con columna `id` utilizan UUID generados por PostgreSQL mediante `gen_random_uuid()`.
+- `event_staff` utiliza la clave primaria compuesta `(event_id, user_id)`.
+- Todos los campos declarados son obligatorios excepto `qr_credential.revoked_at`, que admite `NULL`.
+- `NOT NULL` impide valores nulos; no sustituye la validación de textos vacíos, correos ni otros formatos en la aplicación.
+- El correo del asistente no tiene restricción única. La identidad del asistente se representa mediante su UUID.
+
+### Estados y valores predeterminados
+
+- Los estados de usuario, evento, inscripción y credencial QR utilizan tipos ENUM de PostgreSQL.
+- Los valores iniciales son `active` para usuarios, `draft` para eventos, `confirmed` para inscripciones y `active` para credenciales QR.
+- Los campos de creación, emisión, check-in y auditoría utilizan `now()` como valor predeterminado.
+- `audit_log.metadata` utiliza JSONB con un objeto vacío como valor predeterminado.
+- `role`, `source`, `action` y `entity_type` permanecen como texto; sus catálogos y validaciones se definirán con las historias correspondientes.
+
+### Fechas
+
+- Las fechas se almacenan como `timestamptz`.
+- `event.timezone` conserva el nombre de la zona horaria del evento; `timestamptz` representa el instante, pero no conserva ese nombre.
+- La restricción `event_dates_check` exige que `ends_at` sea posterior a `starts_at`.
+- La aplicación deberá validar el nombre de la zona horaria y presentar las fechas según corresponda.
+
+### Relaciones y borrado
+
+- Las claves foráneas utilizan `ON DELETE RESTRICT` para impedir la eliminación de registros que todavía tienen referencias.
+- No se configuraron borrados en cascada.
+- Las claves foráneas comprueban existencia e integridad referencial; no implementan autorización.
+- La API deberá comprobar que el operador esté autorizado para el evento y que el evento, la inscripción y el QR permitan el check-in.
+
+### Credenciales QR
+
+- Una inscripción puede tener cero o una fila en `qr_credential`.
+- La unicidad de `registration_id` se aplica a todos los estados, no solamente a `active`.
+- Con este esquema no se conservan varias filas históricas de credenciales para una misma inscripción.
+- Si se requiere ese historial, deberá revisarse explícitamente el modelo y añadirse una migración.
+- La generación, el hash y la validación del token se implementarán en las historias de QR.
+
+### Auditoría
+
+- Cada registro de auditoría requiere un evento y un usuario actor existentes.
+- `entity_id` no tiene clave foránea porque puede identificar entidades de distintas tablas.
+- La estructura y el contenido permitido de `metadata` deberán validarse en la aplicación.
+- Las acciones automáticas sin usuario requerirán una decisión posterior sobre cómo representar al actor.
+
+### Alcance de las pruebas
+
+- Las pruebas de integración verifican duplicados de inscripción, check-in, asignación de personal y credenciales QR.
+- También comprueban referencias inexistentes, borrado restringido, fechas inválidas y un estado de evento no permitido.
+- Cada prueba revierte su transacción para descartar sus datos.
+- La prueba de solicitudes simultáneas y la traducción de errores a `accepted`, `duplicate` o `invalid` corresponden a la implementación del check-in persistido.
