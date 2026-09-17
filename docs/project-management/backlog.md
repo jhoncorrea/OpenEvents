@@ -91,3 +91,17 @@ RF-...
 - [ ] Demo o evidencia
 ```
 
+## Desglose de OE-02-001 — Creación de eventos
+
+OE-02-001 conserva su identificador como historia principal. Se implementará mediante entregas parciales; completar la operación interna no completa por sí solo el recorrido del Organizador.
+
+| Parte | Alcance | Seguimiento |
+|---|---|---|
+| OE-02-001A | Validación y operación interna de creación de eventos con persistencia PostgreSQL y pruebas. | Issue #15. |
+| OE-02-001B | Exponer `POST /api/v1/events` con autenticación, autorización de Organizador y pruebas HTTP. | Pendiente de crear Issue; depende de OE-02-001A y de las capacidades de autenticación y roles de OE-01-001/OE-01-002. |
+
+La estimación de la fila principal se conserva como referencia original; este desglose no añade puntos ni estimaciones independientes.
+
+OE-02-002 mantiene su referencia a OE-02-001. No debe interpretarse la finalización de OE-02-001A como cumplimiento de toda esa dependencia.
+
+El formulario web queda fuera de OE-02-001A y su planificación se definirá por separado.
