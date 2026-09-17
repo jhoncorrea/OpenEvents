@@ -19,6 +19,7 @@ La persistencia, autenticación y servicios Azure se incorporarán en incremento
 
 - Node.js 22 o superior.
 - pnpm 11.
+- Docker Desktop con Docker Compose.
 
 ## Ejecutar localmente
 
@@ -35,7 +36,7 @@ Código QR de demostración: `OE-2027-001`.
 
 ### Variables de entorno
 
-Los archivos `.env` son opcionales para el desarrollo local. Si no existen, las aplicaciones utilizan valores predeterminados.
+Los archivos `.env` de la API y la web son opcionales para el desarrollo local. Si no existen, ambas aplicaciones utilizan valores predeterminados.
 
 Para personalizar la configuración en PowerShell:
 
@@ -57,6 +58,58 @@ La API carga opcionalmente `apps/api/.env` y valida la configuración antes de i
 Las variables con prefijo `VITE_` son públicas y quedan incluidas en el código enviado al navegador. Nunca deben contener contraseñas, tokens ni otros secretos.
 
 En producción, las variables deben ser proporcionadas por la plataforma de ejecución. Las variables del entorno del sistema tienen prioridad sobre el archivo `.env`.
+
+### PostgreSQL local
+
+PostgreSQL 17 se ejecuta mediante Docker Compose y publica el puerto `5432` únicamente en `127.0.0.1`. Sus datos se almacenan en el volumen persistente `openevents_postgres_data`.
+
+Antes de iniciarlo por primera vez, crea la configuración local:
+
+```powershell
+Copy-Item .\infra\postgres\.env.example .\infra\postgres\.env
+```
+
+Este comando crea el archivo local con el usuario, la contraseña y el nombre de la base de datos. El archivo resultante está excluido de Git y sus valores son exclusivos del desarrollo local.
+
+Para crear e iniciar PostgreSQL en segundo plano:
+
+```powershell
+docker compose up -d
+```
+
+El comando descarga la imagen cuando sea necesario, crea la red y el volumen, y deja PostgreSQL ejecutándose en segundo plano.
+
+Para comprobar su estado:
+
+```powershell
+docker compose ps
+```
+
+PostgreSQL está disponible cuando el servicio muestra el estado `healthy`.
+
+Para comprobar la conexión mediante una consulta:
+
+```powershell
+docker compose exec postgres psql -U openevents -d openevents -c "SELECT current_database(), current_user, version();"
+```
+
+El comando ejecuta `psql` dentro del contenedor y muestra la base de datos, el usuario y la versión del servidor.
+
+Para detener PostgreSQL conservando los datos:
+
+```powershell
+docker compose down
+```
+
+Este comando elimina el contenedor y la red, pero conserva el volumen persistente.
+
+Para eliminar también todos los datos locales:
+
+```powershell
+docker compose down -v
+```
+
+Este último comando elimina deliberadamente el volumen de PostgreSQL y debe utilizarse solamente cuando se quiera reiniciar completamente la base local.
 
 ## Comandos
 
