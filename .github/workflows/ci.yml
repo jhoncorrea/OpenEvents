@@ -110,6 +110,56 @@ jobs:
       - name: Run build
         run: pnpm build
 
+  integration:
+    name: Database integration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: openevents
+          POSTGRES_PASSWORD: openevents_ci_password
+          POSTGRES_DB: openevents_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openevents -d openevents_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 10s
+
+    env:
+      DATABASE_URL: postgresql://openevents:openevents_ci_password@127.0.0.1:5432/openevents_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Enable pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply database migrations
+        run: pnpm --filter @openevents/api run db:migrate
+
+      - name: Verify migration rerun
+        run: pnpm --filter @openevents/api run db:migrate
+
+      - name: Run database integration tests
+        run: pnpm --filter @openevents/api run test:integration
+
   validate:
     name: Validate monorepo
     runs-on: ubuntu-latest
@@ -118,6 +168,7 @@ jobs:
       - typecheck
       - test
       - build
+      - integration
     if: ${{ always() }}
 
     steps:
@@ -129,6 +180,7 @@ jobs:
             "${{ needs.typecheck.result }}"
             "${{ needs.test.result }}"
             "${{ needs.build.result }}"
+            "${{ needs.integration.result }}"
           )
 
           printf 'Job results: %s\n' "${results[*]}"

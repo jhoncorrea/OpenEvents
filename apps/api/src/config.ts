@@ -29,3 +29,42 @@ export function parseApiConfig(environment: Environment) {
     host: result.data.HOST,
   };
 }
+
+export function parseDatabaseConfig(environment: Environment) {
+  const databaseUrl = environment.DATABASE_URL?.trim();
+
+  if (!databaseUrl) {
+    throw new Error(
+      "Invalid database configuration: DATABASE_URL is required.",
+    );
+  }
+
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(databaseUrl);
+  } catch {
+    throw new Error(
+      "Invalid database configuration: DATABASE_URL must be a valid PostgreSQL URL.",
+    );
+  }
+
+  const validProtocol =
+    parsedUrl.protocol === "postgres:" ||
+    parsedUrl.protocol === "postgresql:";
+
+  const hasDatabase = parsedUrl.pathname.length > 1;
+
+  if (
+    !validProtocol ||
+    !parsedUrl.hostname ||
+    !hasDatabase ||
+    parsedUrl.hash
+  ) {
+    throw new Error(
+      "Invalid database configuration: DATABASE_URL must include a PostgreSQL protocol, host and database name, without a URL fragment.",
+    );
+  }
+
+  return { databaseUrl };
+}
