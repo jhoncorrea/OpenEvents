@@ -19,8 +19,10 @@ Este directorio contiene la base documental que debe guiar el desarrollo de Open
 9. [Roadmap y Gantt](project-management/roadmap.md)
 10. [Registro de riesgos](project-management/risk-register.md)
 11. [Registro de decisiones](project-management/decision-log.md)
-12. [ADR-002: monolito modular](adr/ADR-002-monolito-modular.md)
-13. [ADR-003: despliegue inicial en Azure](adr/ADR-003-despliegue-azure.md)
+12. [ADR-001: stack inicial](adr/ADR-001-stack-inicial.md)
+13. [ADR-002: monolito modular](adr/ADR-002-monolito-modular.md)
+14. [ADR-003: despliegue inicial en Azure](adr/ADR-003-despliegue-azure.md)
+15. [ADR-004: ORM y estrategia de migraciones](adr/ADR-004-orm-y-migraciones.md)
 
 ## Regla de gobierno
 
