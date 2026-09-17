@@ -4,7 +4,9 @@ OpenEvents es una plataforma open source para gestionar la operación de eventos
 
 ## Estado
 
-Primera iteración técnica. El objetivo actual es validar el flujo mínimo de check-in con una interfaz web y una API en TypeScript.
+Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
+
+La creación de eventos todavía no está expuesta mediante una ruta HTTP ni un formulario web. Su publicación requiere incorporar autenticación y autorización.
 
 ## Arquitectura inicial
 
@@ -190,15 +192,46 @@ pnpm --filter @openevents/api run test:integration
 
 Este comando requiere PostgreSQL disponible, `DATABASE_URL` configurada y las migraciones aplicadas.
 
-Las pruebas verifican restricciones únicas, claves foráneas, estados y fechas. Cada prueba utiliza una transacción que se revierte al terminar para descartar sus datos.
+Las pruebas de integración verifican restricciones únicas, claves foráneas, estados y fechas. También comprueban la creación y recuperación de eventos, el rechazo de slugs duplicados y entradas inválidas, y la propagación de errores de base de datos distintos del conflicto de slug.
 
-Estas pruebas comprueban restricciones del esquema. La prueba de solicitudes simultáneas del flujo de check-in se incorporará con la implementación correspondiente.
+Cada prueba utiliza una transacción que se revierte al terminar para descartar sus datos.
+
+Estas pruebas no verifican todavía la autorización HTTP ni las solicitudes simultáneas del flujo de check-in. Esas comprobaciones se incorporarán con las implementaciones correspondientes.
 
 #### Validación en CI
 
 El job `Database integration` crea un PostgreSQL temporal, aplica las migraciones versionadas sobre una base vacía, repite el comando de migración y ejecuta las pruebas de integración.
 
 La comprobación requerida `Validate monorepo` exige que este job también termine correctamente.
+
+### Creación interna de eventos — OE-02-001A
+
+El módulo `apps/api/src/modules/events` implementa la validación y persistencia de nuevos eventos.
+
+- `create-event-input.ts` valida los datos de entrada.
+- `create-event.ts` recibe una conexión Drizzle, valida la entrada e inserta el evento en PostgreSQL.
+- Los archivos de pruebas verifican la validación y el comportamiento contra PostgreSQL real.
+
+La entrada requiere:
+
+| Campo | Regla |
+|---|---|
+| `name` | Texto obligatorio, hasta 200 caracteres. |
+| `slug` | Hasta 120 caracteres; letras minúsculas, números y guiones simples entre palabras. |
+| `startsAt` | Fecha y hora ISO 8601 en UTC, terminada en `Z`. |
+| `endsAt` | Fecha y hora UTC posterior al inicio. |
+| `timezone` | Nombre de zona horaria reconocido por el runtime, hasta 100 caracteres; por ejemplo, `America/Lima`. |
+| `location` | Texto obligatorio, hasta 500 caracteres. |
+
+Se eliminan espacios exteriores de los campos de texto. Se rechazan campos adicionales, incluidos `id` y `status`.
+
+La operación crea el evento con estado `draft`. PostgreSQL genera su UUID y fecha de creación. La función devuelve el registro insertado.
+
+Si el `slug` ya existe, la operación produce `EventSlugConflictError`, con código `EVENT_SLUG_CONFLICT`, sin modificar el evento existente. Otros errores de base de datos se propagan y no se convierten en conflictos de slug.
+
+Esta entrega utiliza la tabla `event` existente y no añade migraciones.
+
+La función es interna: no autentica usuarios ni comprueba roles. Antes de exponerla mediante `POST /api/v1/events`, deberá integrarse con la autenticación y autorización de Organizador. No debe publicarse como una ruta sin protección.
 
 ## Comandos
 
