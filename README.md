@@ -4,7 +4,9 @@ OpenEvents es una plataforma open source para gestionar la operación de eventos
 
 ## Estado
 
-La web incorpora inicio y cierre de sesión con Microsoft Entra External ID mediante MSAL. Muestra la cuenta conectada y maneja errores de configuración e inicio de sesión. Las rutas de demostración siguen disponibles sin autorización; la protección de rutas y la validación de tokens y roles en la API se implementarán por separado.
+La web incorpora inicio y cierre de sesión con Microsoft Entra External ID mediante MSAL. La API valida access tokens y dispone de controles reutilizables de roles. La ruta protegida `GET /api/v1/auth/me` devuelve la identidad y los roles del usuario. El botón «Comprobar acceso» solicita un access token para la API y consulta esa ruta; se verificó manualmente el rol `organizer` con un token real.
+
+`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La autorización por evento mediante `event_staff` está pendiente.
 
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
@@ -17,7 +19,7 @@ La creación de eventos todavía no está expuesta mediante una ruta HTTP ni un 
 - `docs/adr`: decisiones de arquitectura.
 - `docs/project-management`: planificación y registro de sesiones.
 
-PostgreSQL local, el esquema inicial con migraciones versionadas y la sesión web con Microsoft Entra External ID ya están disponibles. La conexión de los endpoints con la persistencia, su protección mediante tokens y roles, y el despliegue en Azure se incorporarán en incrementos posteriores. No se usarán microservicios en el MVP.
+PostgreSQL local, el esquema inicial con migraciones versionadas, la sesión web y la autenticación de la API ya están disponibles. La conexión de los endpoints de negocio con la persistencia, sus políticas de autorización y el despliegue en Azure se incorporarán en incrementos posteriores. No se usarán microservicios en el MVP.
 
 ## Requisitos
 
@@ -27,7 +29,7 @@ PostgreSQL local, el esquema inicial con migraciones versionadas y la sesión we
 
 ## Ejecutar localmente
 
-Antes del primer arranque, configura las variables de autenticación de la web siguiendo la sección «Variables de entorno». Para iniciar sesión necesitas acceso al tenant de Microsoft Entra External ID configurado y conexión a internet.
+Antes del primer arranque, configura las variables de autenticación de la API y de la web siguiendo la sección «Variables de entorno». Para iniciar sesión y comprobar el acceso real necesitas acceso al tenant de Microsoft Entra External ID configurado y conexión a internet.
 
 ```bash
 pnpm install
@@ -42,9 +44,9 @@ Código QR de demostración: `OE-2027-001`.
 
 ### Variables de entorno
 
-La API de demostración puede iniciar sin un archivo `.env`, utilizando los valores predeterminados de `PORT` y `HOST`.
+La API exige las cinco variables `ENTRA_*` indicadas en la tabla y valida su formato antes de escuchar solicitudes. El archivo `.env` es opcional si las variables ya están proporcionadas por el entorno. `PORT` y `HOST` conservan sus valores predeterminados.
 
-La web requiere las cuatro variables `VITE_ENTRA_*` para inicializar la autenticación. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. `VITE_API_URL` conserva su valor predeterminado.
+La web requiere las cinco variables `VITE_ENTRA_*`, incluido el scope de la API. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. Configura también `VITE_API_URL`: la consulta de identidad no aplica un valor predeterminado.
 
 Para crear los archivos locales en PowerShell, ejecuta los siguientes comandos solamente si los archivos de destino todavía no existen. Si ya existen, edítalos conservando su configuración:
 
@@ -59,16 +61,22 @@ El primer comando crea la configuración local de la API a partir de su ejemplo.
 |---|---|---|---|
 | API | `PORT` | `3001` | Puerto TCP utilizado por Fastify. Debe ser un entero entre 1 y 65535. |
 | API | `HOST` | `127.0.0.1` | Dirección en la que escucha la API. |
-| Web | `VITE_API_URL` | `http://localhost:3001` | URL HTTP o HTTPS utilizada por la web para comunicarse con la API. |
+| API | `ENTRA_TENANT_ID` | Sin valor predeterminado | UUID del tenant permitido. |
+| API | `ENTRA_API_CLIENT_ID` | Sin valor predeterminado | UUID de la API, usado como audiencia esperada. |
+| API | `ENTRA_WEB_CLIENT_ID` | Sin valor predeterminado | UUID de la aplicación cliente permitida. |
+| API | `ENTRA_ISSUER` | Sin valor predeterminado | Emisor esperado; URL HTTPS sin credenciales, query ni fragmento. |
+| API | `ENTRA_JWKS_URI` | Sin valor predeterminado | URL HTTPS de las claves públicas de Entra. |
+| Web | `VITE_API_URL` | Sin valor predeterminado para la consulta de identidad | URL base de la API; en desarrollo, `http://localhost:3001`. Para consultar identidad admite HTTPS o HTTP en localhost. |
 | API / herramientas de base de datos | `DATABASE_URL` | Sin valor predeterminado | URL de PostgreSQL requerida para aplicar migraciones y ejecutar pruebas de integración. |
 | Web | `VITE_ENTRA_CLIENT_ID` | Sin valor predeterminado | Identificador de la aplicación web registrada como SPA en Entra. |
 | Web | `VITE_ENTRA_TENANT_ID` | Sin valor predeterminado | Identificador del tenant externo de Entra. |
 | Web | `VITE_ENTRA_TENANT_SUBDOMAIN` | Sin valor predeterminado | Subdominio del tenant, sin protocolo ni sufijo; por ejemplo, `openeventsdevjhon`. |
 | Web | `VITE_ENTRA_REDIRECT_URI` | Sin valor predeterminado | URL de retorno registrada para la SPA; en desarrollo, `http://localhost:5173/`. |
+| Web | `VITE_ENTRA_API_SCOPE` | Sin valor predeterminado | Scope completo de la API con formato `api://<API client ID>/access_as_user`. |
 
-La API carga opcionalmente `apps/api/.env` y valida la configuración antes de iniciar. La web carga `apps/web/.env` mediante Vite, valida `VITE_API_URL` y comprueba las variables de autenticación al iniciar en el navegador.
+La API carga opcionalmente `apps/api/.env` y valida la configuración antes de iniciar. Vite carga `apps/web/.env`; la web comprueba las variables de autenticación al iniciar en el navegador. La consulta de identidad valida `VITE_API_URL` antes de solicitar un token.
 
-Si falta una variable de autenticación o su formato es inválido, la web muestra un error de configuración. Después de modificar `.env`, reinicia Vite.
+Si falta una variable de autenticación o su formato es inválido, la API rechaza el arranque o la web muestra un error de configuración, según la aplicación afectada. Después de modificar un `.env`, reinicia el servidor correspondiente.
 
 Los identificadores de aplicación y tenant son configuración pública. La aplicación web no utiliza un secreto de cliente.
 
@@ -92,7 +100,11 @@ La sesión utiliza `@azure/msal-browser` y `@azure/msal-react` para integrar la 
 - Flujo de registro e inicio de sesión: `openevents-signin-dev`, asociado a la aplicación web.
 - Método configurado: correo electrónico y contraseña.
 
-La aplicación `openevents-api-dev` expone el permiso delegado `access_as_user`, concedido a la aplicación web mediante consentimiento administrativo. Esta entrega todavía no utiliza ese permiso para llamar a la API: la solicitud de inicio de sesión declara `openid` y `profile`.
+La aplicación `openevents-api-dev` expone el permiso delegado `access_as_user`, concedido a la aplicación web mediante consentimiento administrativo. El inicio de sesión declara `openid` y `profile`. El botón «Comprobar acceso» solicita por separado el scope completo de la API:
+
+```text
+api://cd81b6dc-e10f-4240-bf69-7df9a49c514a/access_as_user
+```
 
 La configuración de Entra se realizó manualmente en el portal; todavía no está automatizada mediante infraestructura como código.
 
@@ -106,11 +118,11 @@ El botón «Cerrar sesión» inicia la salida mediante Entra y utiliza la URL co
 
 MSAL utiliza `sessionStorage` como caché. La aplicación recupera la cuenta disponible al recargar la misma pestaña.
 
-Durante una operación de sesión, el botón queda deshabilitado. Los fallos muestran mensajes sin presentar tokens ni detalles internos al usuario.
+Los botones de sesión y comprobación de acceso comparten un bloqueo para evitar operaciones simultáneas. Los fallos muestran mensajes controlados sin presentar tokens ni errores originales de Entra o de la API al usuario.
 
 #### Validación
 
-Las pruebas de `auth-config.test.ts` comprueban la configuración válida y el rechazo de variables ausentes, identificadores inválidos, subdominios incorrectos y URI de retorno no permitidas. No se conectan a Entra.
+Las pruebas de `auth-config.test.ts` comprueban la configuración válida y el rechazo de variables ausentes, identificadores inválidos, subdominios incorrectos, URI de retorno no permitidas y scopes mal formados. Las pruebas de `api-auth.test.ts` comprueban la solicitud del token, el envío a la API, la redirección cuando se requiere interacción y el manejo de errores. No se conectan a Entra.
 
 La comprobación manual del flujo incluye:
 
@@ -118,14 +130,30 @@ La comprobación manual del flujo incluye:
 2. Recargar la página y comprobar que se conserva la sesión.
 3. Cerrar sesión y comprobar que vuelve a mostrarse «Iniciar sesión».
 4. Iniciar sesión nuevamente.
+5. Pulsar «Comprobar acceso». Si se requiere una redirección a Microsoft, completarla y volver a pulsar el botón al regresar.
+6. Comprobar «Acceso a la API verificado» y los roles devueltos. En Development se verificó manualmente `organizer`.
 
 Las pruebas y la compilación no necesitan iniciar sesión en Azure. Para utilizar la web compilada, las variables `VITE_ENTRA_*` deben proporcionarse durante la compilación, porque Vite las incorpora al código del navegador.
 
 #### Alcance pendiente
 
-Esta entrega incorpora la sesión web. No restringe todavía el acceso a la interfaz de demostración, no envía tokens a sus endpoints y no implementa autorización de Organizador u Operador.
+La sesión web y la consulta protegida de identidad están implementadas. La interfaz de demostración sigue visible sin iniciar sesión y sus endpoints continúan abiertos. La protección de rutas web y la autorización de las operaciones de negocio están pendientes.
 
-La validación de tokens y permisos en la API corresponde a OE-01-002. La protección de las rutas web se completará en una entrega posterior de OE-01-003.
+### Autenticación de API — OE-01-002A
+
+`GET /api/v1/auth/me` valida el access token y devuelve `tenantId`, `objectId`, `subject` y `roles`. No exige un rol específico.
+
+- `401`: falta el encabezado Bearer, está mal formado o el token es inválido.
+- `403`: la aplicación cliente no está permitida o falta el scope requerido.
+- `500`: ocurre un fallo operativo o inesperado durante la verificación.
+
+Los errores actuales tienen formato plano `{ code, message }`. Las respuestas del control incluyen `Cache-Control: no-store`; las respuestas 401 incluyen `WWW-Authenticate: Bearer`.
+
+Se reconocen `admin`, `organizer` y `checkin_operator`. Cada ruta con restricción de roles debe declarar los permitidos. `admin` no hereda permisos de otros roles y una lista vacía de roles permitidos deniega el acceso.
+
+El verificador usa `jose`, claves públicas de Entra, `RS256`, emisor y audiencia configurados, y comprobaciones de claims, tenant, aplicación cliente y scope. El token no se devuelve en la respuesta ni se registra deliberadamente. El control registra los fallos inesperados mediante mensajes genéricos y el logger redacta `req.headers.authorization`.
+
+Consulta [Autenticación de API](docs/architecture/authentication.md) para ver la configuración, el contrato implementado y sus límites.
 
 ### PostgreSQL local
 
@@ -302,6 +330,7 @@ La función es interna: no autentica usuarios ni comprueba roles. Antes de expon
 pnpm dev
 pnpm build
 pnpm typecheck
+pnpm lint
 pnpm test
 ```
 

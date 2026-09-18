@@ -6,18 +6,25 @@ const validEnvironment = {
   VITE_ENTRA_TENANT_ID: "22222222-2222-4222-8222-222222222222",
   VITE_ENTRA_TENANT_SUBDOMAIN: "openeventstest",
   VITE_ENTRA_REDIRECT_URI: "http://localhost:5173/",
+  VITE_ENTRA_API_SCOPE:
+    "api://33333333-3333-4333-8333-333333333333/access_as_user",
+};
+
+const expectedConfiguration = {
+  clientId: validEnvironment.VITE_ENTRA_CLIENT_ID,
+  authority:
+    "https://openeventstest.ciamlogin.com/" +
+    validEnvironment.VITE_ENTRA_TENANT_ID,
+  knownAuthorities: ["openeventstest.ciamlogin.com"],
+  redirectUri: "http://localhost:5173/",
+  apiScope: validEnvironment.VITE_ENTRA_API_SCOPE,
 };
 
 describe("parseAuthConfig", () => {
   it("builds the configuration for the external tenant", () => {
-    expect(parseAuthConfig(validEnvironment)).toEqual({
-      clientId: validEnvironment.VITE_ENTRA_CLIENT_ID,
-      authority:
-        "https://openeventstest.ciamlogin.com/" +
-        validEnvironment.VITE_ENTRA_TENANT_ID,
-      knownAuthorities: ["openeventstest.ciamlogin.com"],
-      redirectUri: "http://localhost:5173/",
-    });
+    expect(parseAuthConfig(validEnvironment)).toEqual(
+      expectedConfiguration,
+    );
   });
 
   it("trims values and normalizes the tenant subdomain", () => {
@@ -29,15 +36,10 @@ describe("parseAuthConfig", () => {
           ` ${validEnvironment.VITE_ENTRA_TENANT_ID} `,
         VITE_ENTRA_TENANT_SUBDOMAIN: " OpenEventsTest ",
         VITE_ENTRA_REDIRECT_URI: " http://localhost:5173 ",
+        VITE_ENTRA_API_SCOPE:
+          ` ${validEnvironment.VITE_ENTRA_API_SCOPE} `,
       }),
-    ).toEqual({
-      clientId: validEnvironment.VITE_ENTRA_CLIENT_ID,
-      authority:
-        "https://openeventstest.ciamlogin.com/" +
-        validEnvironment.VITE_ENTRA_TENANT_ID,
-      knownAuthorities: ["openeventstest.ciamlogin.com"],
-      redirectUri: "http://localhost:5173/",
-    });
+    ).toEqual(expectedConfiguration);
   });
 
   it.each(Object.keys(validEnvironment))(
@@ -118,5 +120,21 @@ describe("parseAuthConfig", () => {
         VITE_ENTRA_REDIRECT_URI: redirectUri,
       }),
     ).toThrow("Invalid VITE_ENTRA_REDIRECT_URI");
+  });
+
+  it.each([
+    "access_as_user",
+    "api://not-a-uuid/access_as_user",
+    "api://33333333-3333-4333-8333-333333333333/.default",
+    "api://33333333-3333-4333-8333-333333333333/another_scope",
+    `${validEnvironment.VITE_ENTRA_API_SCOPE}_extra`,
+    `${validEnvironment.VITE_ENTRA_API_SCOPE} openid`,
+  ])("rejects an invalid API scope: %s", (apiScope) => {
+    expect(() =>
+      parseAuthConfig({
+        ...validEnvironment,
+        VITE_ENTRA_API_SCOPE: apiScope,
+      }),
+    ).toThrow("Invalid VITE_ENTRA_API_SCOPE");
   });
 });

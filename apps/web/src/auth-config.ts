@@ -3,7 +3,13 @@ type AuthEnvironment = Record<string, string | undefined>;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function requiredValue(environment: AuthEnvironment, name: string): string {
+const API_SCOPE_PATTERN =
+  /^api:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/access_as_user$/i;
+
+function requiredValue(
+  environment: AuthEnvironment,
+  name: string,
+): string {
   const value = environment[name]?.trim();
 
   if (!value) {
@@ -24,6 +30,7 @@ export function parseAuthConfig(environment: AuthEnvironment) {
     environment,
     "VITE_ENTRA_REDIRECT_URI",
   );
+  const apiScope = requiredValue(environment, "VITE_ENTRA_API_SCOPE");
 
   if (!UUID_PATTERN.test(clientId)) {
     throw new Error("Invalid VITE_ENTRA_CLIENT_ID: expected a UUID.");
@@ -36,6 +43,12 @@ export function parseAuthConfig(environment: AuthEnvironment) {
   if (!/^[a-z0-9]+$/i.test(tenantSubdomain)) {
     throw new Error(
       "Invalid VITE_ENTRA_TENANT_SUBDOMAIN: use only letters and numbers.",
+    );
+  }
+
+  if (!API_SCOPE_PATTERN.test(apiScope)) {
+    throw new Error(
+      "Invalid VITE_ENTRA_API_SCOPE: expected api://<API client ID>/access_as_user.",
     );
   }
 
@@ -78,5 +91,6 @@ export function parseAuthConfig(environment: AuthEnvironment) {
     authority: `https://${authorityHost}/${tenantId}`,
     knownAuthorities: [authorityHost],
     redirectUri: redirectUrl.toString(),
+    apiScope,
   };
 }

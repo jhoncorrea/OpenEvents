@@ -24,3 +24,43 @@
 - Dos pruebas automatizadas del check-in aprobadas.
 - Build de producción de web y API completado.
 - API verificada: salud `200`, check-in aceptado `200`, duplicado `200` e inválido `404`.
+
+## Sesión 002 — 18 de septiembre de 2026
+
+**Objetivo:** implementar OE-01-002A, validación de access tokens y roles de aplicación.
+**Issue:** #19.
+**Rama:** `feat/19-api-authentication`.
+
+### Resultado
+
+- Separación de la construcción de Fastify en `app.ts` y el arranque en `server.ts`.
+- Validación de la configuración de autenticación antes de iniciar la API.
+- Verificación de access tokens con `jose`: firma RS256, emisor, audiencia, claims obligatorios, tenant, aplicación cliente y scope.
+- Roles reconocidos: `admin`, `organizer` y `checkin_operator`, sin jerarquía implícita.
+- Control HTTP reutilizable con respuestas 401, 403 y 500.
+- Ruta protegida `GET /api/v1/auth/me`.
+- Solicitud del access token mediante MSAL y consulta desde el botón «Comprobar acceso».
+- Manejo de errores sin mostrar tokens ni errores originales del verificador.
+- Documentación del comportamiento implementado y sus límites.
+
+### Validación realizada
+
+- Validaciones globales completadas: 134 pruebas de API y 59 de web aprobadas; typecheck, lint, build y revisión de espacios correctos.
+- API: 23 pruebas de configuración, 35 del verificador, 16 HTTP y 1 de salud aprobadas en las ejecuciones correspondientes.
+- Web: 33 pruebas de configuración y 22 del cliente de autenticación aprobadas.
+- Typecheck y lint de API y web completados sin errores después de las correcciones.
+- Comprobación manual con Microsoft Entra External ID: la API aceptó un access token real y devolvió el rol `organizer`.
+
+### Límites conservados
+
+- `/health` permanece público.
+- Las rutas demo `/api/events/current` y `/api/check-ins` siguen abiertas.
+- La interfaz demo no requiere iniciar sesión.
+- No se implementó `POST /api/v1/events`.
+- No se implementó autorización por evento mediante `event_staff`.
+- No se añadieron recursos de Azure.
+
+### Pendiente al registrar esta sesión
+
+- Revisar el diff final y los archivos que se incluirán en el commit.
+- Crear commit y pull request, comprobar CI y completar el merge.
