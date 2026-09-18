@@ -1,6 +1,21 @@
 # Contrato inicial de API
 
-Este documento describe la API objetivo del MVP. El spike actual puede implementar solo una parte.
+Este documento describe la API objetivo del MVP. No todas las rutas ni convenciones aquí propuestas están implementadas.
+
+## Estado implementado — OE-01-002A
+
+- `GET /health` es público.
+- `GET /api/v1/auth/me` requiere un access token válido para la API, la aplicación cliente permitida y el scope `access_as_user`. Devuelve la identidad y los roles reconocidos; no exige un rol específico.
+- `GET /api/events/current` y `POST /api/check-ins` son rutas demo que siguen abiertas.
+- `POST /api/v1/events` y la autorización por evento mediante `event_staff` están pendientes.
+
+La autenticación implementada responde con errores planos `{ code, message }` y estados 401, 403 o 500. El contenedor `error`, el campo `correlationId` y la convención `X-Correlation-Id` descritos más abajo siguen siendo parte del contrato objetivo.
+
+Los roles reconocidos son `admin`, `organizer` y `checkin_operator`. No existe una jerarquía implícita entre ellos. Las referencias a «Rol mínimo», «Organizer» y «Operator» en las tablas siguientes describen perfiles funcionales previstos; cada ruta de negocio deberá definir expresamente los roles permitidos y las restricciones por evento.
+
+Consulta [Autenticación de API — OE-01-002A](authentication.md) para conocer el contrato y la configuración implementados.
+
+## Contrato objetivo del MVP
 
 Base path propuesto: `/api/v1`
 

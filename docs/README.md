@@ -23,6 +23,7 @@ Este directorio contiene la base documental que debe guiar el desarrollo de Open
 13. [ADR-002: monolito modular](adr/ADR-002-monolito-modular.md)
 14. [ADR-003: despliegue inicial en Azure](adr/ADR-003-despliegue-azure.md)
 15. [ADR-004: ORM y estrategia de migraciones](adr/ADR-004-orm-y-migraciones.md)
+16. [Autenticación de API — OE-01-002A](architecture/authentication.md)
 
 ## Regla de gobierno
 

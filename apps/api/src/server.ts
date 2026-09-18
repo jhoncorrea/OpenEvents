@@ -1,50 +1,15 @@
-import cors from "@fastify/cors";
-import Fastify from "fastify";
-import { z } from "zod";
-import { registerCheckIn } from "./check-in.js";
+import { buildApp } from "./app.js";
+import { parseAuthConfig } from "./auth-config.js";
+import { createAccessTokenVerifier } from "./auth/verify-access-token.js";
 import { parseApiConfig } from "./config.js";
 
-const app = Fastify({ logger: true });
-
-await app.register(cors, {
-  origin: ["http://localhost:5173"],
-});
-
-app.get("/health", async () => ({
-  status: "ok",
-  service: "openevents-api",
-  timestamp: new Date().toISOString(),
-}));
-
-app.get("/api/events/current", async () => ({
-  id: "devopsdays-lima-2027",
-  name: "DevOpsDays Lima 2027",
-  venue: "Centro de Convenciones de Lima",
-  date: "27 de agosto de 2027",
-  stats: {
-    registered: 240,
-    checkedIn: 168,
-  },
-}));
-
-const checkInBody = z.object({
-  code: z.string().min(1).max(120),
-});
-
-app.post("/api/check-ins", async (request, reply) => {
-  const parsed = checkInBody.safeParse(request.body);
-
-  if (!parsed.success) {
-    return reply.code(400).send({
-      status: "invalid",
-      message: "Ingresa un código QR válido.",
-    });
-  }
-
-  const result = registerCheckIn(parsed.data.code);
-  return reply.code(result.status === "invalid" ? 404 : 200).send(result);
-});
-
 const { port, host } = parseApiConfig(process.env);
+const authConfig = parseAuthConfig(process.env);
+const verifyAccessToken = createAccessTokenVerifier(authConfig);
+
+const app = buildApp({
+  logger: true,
+  verifyAccessToken,
+});
 
 await app.listen({ port, host });
