@@ -103,3 +103,49 @@ footer { margin-top: 18px; display: flex; justify-content: space-between; color:
   .input-row { grid-template-columns: 1fr; }
   footer { flex-direction: column; gap: 6px; }
 }
+
+.session-panel {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #dbe3ec;
+  border-radius: 12px;
+  background: #fff;
+  color: #172033;
+}
+
+.session-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.session-panel p {
+  margin: 0.35rem 0 0;
+}
+
+.session-panel button {
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 8px;
+  background: #174ea6;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.session-panel button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.session-panel button:focus-visible {
+  outline: 3px solid #172033;
+  outline-offset: 3px;
+}
+
+.session-panel [role="alert"] {
+  margin-top: 0.75rem;
+  color: #a02020;
+}

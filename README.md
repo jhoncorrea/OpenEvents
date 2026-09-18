@@ -4,6 +4,8 @@ OpenEvents es una plataforma open source para gestionar la operación de eventos
 
 ## Estado
 
+La web incorpora inicio y cierre de sesión con Microsoft Entra External ID mediante MSAL. Muestra la cuenta conectada y maneja errores de configuración e inicio de sesión. Las rutas de demostración siguen disponibles sin autorización; la protección de rutas y la validación de tokens y roles en la API se implementarán por separado.
+
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
 La creación de eventos todavía no está expuesta mediante una ruta HTTP ni un formulario web. Su publicación requiere incorporar autenticación y autorización.
@@ -15,7 +17,7 @@ La creación de eventos todavía no está expuesta mediante una ruta HTTP ni un 
 - `docs/adr`: decisiones de arquitectura.
 - `docs/project-management`: planificación y registro de sesiones.
 
-PostgreSQL local y el esquema inicial con migraciones versionadas ya están disponibles. La conexión de los endpoints con la persistencia, la autenticación y los servicios Azure se incorporarán en incrementos posteriores. No se usarán microservicios en el MVP.
+PostgreSQL local, el esquema inicial con migraciones versionadas y la sesión web con Microsoft Entra External ID ya están disponibles. La conexión de los endpoints con la persistencia, su protección mediante tokens y roles, y el despliegue en Azure se incorporarán en incrementos posteriores. No se usarán microservicios en el MVP.
 
 ## Requisitos
 
@@ -24,6 +26,8 @@ PostgreSQL local y el esquema inicial con migraciones versionadas ya están disp
 - Docker Desktop con Docker Compose.
 
 ## Ejecutar localmente
+
+Antes del primer arranque, configura las variables de autenticación de la web siguiendo la sección «Variables de entorno». Para iniciar sesión necesitas acceso al tenant de Microsoft Entra External ID configurado y conexión a internet.
 
 ```bash
 pnpm install
@@ -38,9 +42,11 @@ Código QR de demostración: `OE-2027-001`.
 
 ### Variables de entorno
 
-Los archivos `.env` de la API y la web son opcionales para el desarrollo local. Si no existen, ambas aplicaciones utilizan valores predeterminados.
+La API de demostración puede iniciar sin un archivo `.env`, utilizando los valores predeterminados de `PORT` y `HOST`.
 
-Para personalizar la configuración en PowerShell:
+La web requiere las cuatro variables `VITE_ENTRA_*` para inicializar la autenticación. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. `VITE_API_URL` conserva su valor predeterminado.
+
+Para crear los archivos locales en PowerShell, ejecuta los siguientes comandos solamente si los archivos de destino todavía no existen. Si ya existen, edítalos conservando su configuración:
 
 ```powershell
 Copy-Item .\apps\api\.env.example .\apps\api\.env
@@ -55,14 +61,71 @@ El primer comando crea la configuración local de la API a partir de su ejemplo.
 | API | `HOST` | `127.0.0.1` | Dirección en la que escucha la API. |
 | Web | `VITE_API_URL` | `http://localhost:3001` | URL HTTP o HTTPS utilizada por la web para comunicarse con la API. |
 | API / herramientas de base de datos | `DATABASE_URL` | Sin valor predeterminado | URL de PostgreSQL requerida para aplicar migraciones y ejecutar pruebas de integración. |
+| Web | `VITE_ENTRA_CLIENT_ID` | Sin valor predeterminado | Identificador de la aplicación web registrada como SPA en Entra. |
+| Web | `VITE_ENTRA_TENANT_ID` | Sin valor predeterminado | Identificador del tenant externo de Entra. |
+| Web | `VITE_ENTRA_TENANT_SUBDOMAIN` | Sin valor predeterminado | Subdominio del tenant, sin protocolo ni sufijo; por ejemplo, `openeventsdevjhon`. |
+| Web | `VITE_ENTRA_REDIRECT_URI` | Sin valor predeterminado | URL de retorno registrada para la SPA; en desarrollo, `http://localhost:5173/`. |
 
-La API carga opcionalmente `apps/api/.env` y valida la configuración antes de iniciar. La web carga `apps/web/.env` mediante Vite y valida `VITE_API_URL`.
+La API carga opcionalmente `apps/api/.env` y valida la configuración antes de iniciar. La web carga `apps/web/.env` mediante Vite, valida `VITE_API_URL` y comprueba las variables de autenticación al iniciar en el navegador.
+
+Si falta una variable de autenticación o su formato es inválido, la web muestra un error de configuración. Después de modificar `.env`, reinicia Vite.
+
+Los identificadores de aplicación y tenant son configuración pública. La aplicación web no utiliza un secreto de cliente.
 
 `DATABASE_URL` se valida cuando se ejecutan las operaciones de base de datos. La API de demostración todavía puede iniciar sin esta variable. La generación de migraciones tampoco requiere conexión a PostgreSQL.
 
 Las variables con prefijo `VITE_` son públicas y quedan incluidas en el código enviado al navegador. Nunca deben contener contraseñas, tokens ni otros secretos.
 
 En producción, las variables deben ser proporcionadas por la plataforma de ejecución. Las variables del entorno del sistema tienen prioridad sobre el archivo `.env`.
+
+### Sesión web — OE-01-003A
+
+La sesión utiliza `@azure/msal-browser` y `@azure/msal-react` para integrar la web con Microsoft Entra External ID.
+
+#### Configuración de identidad en Development
+
+- Tenant externo: `OpenEvents Development`.
+- Dominio inicial: `openeventsdevjhon.onmicrosoft.com`.
+- Aplicación web: `openevents-web-dev`.
+- Plataforma de la aplicación web: Single-page application (SPA).
+- URI de redirección local: `http://localhost:5173/`.
+- Flujo de registro e inicio de sesión: `openevents-signin-dev`, asociado a la aplicación web.
+- Método configurado: correo electrónico y contraseña.
+
+La aplicación `openevents-api-dev` expone el permiso delegado `access_as_user`, concedido a la aplicación web mediante consentimiento administrativo. Esta entrega todavía no utiliza ese permiso para llamar a la API: la solicitud de inicio de sesión declara `openid` y `profile`.
+
+La configuración de Entra se realizó manualmente en el portal; todavía no está automatizada mediante infraestructura como código.
+
+#### Funcionamiento local
+
+Abre la web desde `http://localhost:5173/`. Vite utiliza el puerto `5173` con `strictPort`, de modo que falla si el puerto está ocupado en lugar de cambiar automáticamente a otro.
+
+El botón «Iniciar sesión» redirige a Microsoft Entra. Al regresar, la web procesa la respuesta y muestra el nombre de la cuenta conectada.
+
+El botón «Cerrar sesión» inicia la salida mediante Entra y utiliza la URL configurada para volver a la aplicación.
+
+MSAL utiliza `sessionStorage` como caché. La aplicación recupera la cuenta disponible al recargar la misma pestaña.
+
+Durante una operación de sesión, el botón queda deshabilitado. Los fallos muestran mensajes sin presentar tokens ni detalles internos al usuario.
+
+#### Validación
+
+Las pruebas de `auth-config.test.ts` comprueban la configuración válida y el rechazo de variables ausentes, identificadores inválidos, subdominios incorrectos y URI de retorno no permitidas. No se conectan a Entra.
+
+La comprobación manual del flujo incluye:
+
+1. Iniciar sesión desde la web y comprobar el nombre de la cuenta.
+2. Recargar la página y comprobar que se conserva la sesión.
+3. Cerrar sesión y comprobar que vuelve a mostrarse «Iniciar sesión».
+4. Iniciar sesión nuevamente.
+
+Las pruebas y la compilación no necesitan iniciar sesión en Azure. Para utilizar la web compilada, las variables `VITE_ENTRA_*` deben proporcionarse durante la compilación, porque Vite las incorpora al código del navegador.
+
+#### Alcance pendiente
+
+Esta entrega incorpora la sesión web. No restringe todavía el acceso a la interfaz de demostración, no envía tokens a sus endpoints y no implementa autorización de Organizador u Operador.
+
+La validación de tokens y permisos en la API corresponde a OE-01-002. La protección de las rutas web se completará en una entrega posterior de OE-01-003.
 
 ### PostgreSQL local
 
