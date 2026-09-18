@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { webConfig } from "./config";
+import SessionControls from "./SessionControls";
 
 type ResultStatus = "idle" | "loading" | "accepted" | "duplicate" | "invalid" | "error";
 
@@ -91,6 +92,8 @@ export default function App() {
             <span><MapPin size={17} /> San Borja, Lima</span>
           </div>
         </header>
+
+        <SessionControls />
 
         <section className="stats-grid" aria-label="Resumen de asistencia">
           <article className="stat-card">

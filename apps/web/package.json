@@ -11,6 +11,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@azure/msal-browser": "5.22.0",
+    "@azure/msal-react": "5.7.1",
     "@vitejs/plugin-react": "^5.0.2",
     "lucide-react": "^0.542.0",
     "react": "^19.1.1",

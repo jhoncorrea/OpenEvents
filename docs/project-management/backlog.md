@@ -105,3 +105,18 @@ La estimación de la fila principal se conserva como referencia original; este d
 OE-02-002 mantiene su referencia a OE-02-001. No debe interpretarse la finalización de OE-02-001A como cumplimiento de toda esa dependencia.
 
 El formulario web queda fuera de OE-02-001A y su planificación se definirá por separado.
+
+## Desglose de OE-01-003 — Sesión y rutas protegidas en la web
+
+OE-01-003 conserva su identificador como historia principal. Se implementará mediante entregas parciales; completar el inicio y cierre de sesión no completa por sí solo la protección de las funciones operativas.
+
+| Parte | Alcance | Seguimiento |
+|---|---|---|
+| OE-01-003A | Integrar inicio y cierre de sesión con Microsoft Entra External ID, configuración validada, visualización de la cuenta y manejo de errores. | Issue #17. |
+| OE-01-003B | Proteger las rutas web e integrar el acceso a las operaciones protegidas de la API. | Pendiente de crear Issue; depende de OE-01-003A y de las capacidades de protección de API de OE-01-002. |
+
+La estimación de la historia principal se conserva como referencia original; este desglose no añade puntos ni estimaciones independientes.
+
+La configuración manual del tenant, las aplicaciones y el flujo de usuario constituye avance de OE-01-001; no implica por sí sola la finalización de toda esa historia.
+
+La autorización debe aplicarse en la API. Ocultar elementos o restringir navegación en la web no sustituye la comprobación de permisos en el servidor.
