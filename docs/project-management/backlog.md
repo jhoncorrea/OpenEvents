@@ -127,8 +127,17 @@ La autorización debe aplicarse en la API. Ocultar elementos o restringir navega
 | Parte | Alcance | Seguimiento |
 |---|---|---|
 | OE-01-002A | Validar access tokens y roles de aplicación. | Issue #19, PR #20 integrado. |
-| OE-01-002B | Identidad local y asignación transaccional del creador en event_staff. | Issue #25, rama `feat/25-event-organizer-assignment`. Comprobación manual y validación global aprobadas: 398 pruebas, typecheck, lint y build. Pendientes revisión del commit, PR, CI y merge. |
+| OE-01-002B | Identidad local y asignación transaccional del creador en event_staff. | Issue #25 cerrado; PR #26 integrado en main, merge `9fab3f8`. CI de PR y main aprobado según comprobación del mantenedor. Validación local previa: 398 pruebas, typecheck, lint y build. |
 
 OE-01-002B prepara una dependencia de OE-02-002. La consulta y edición deberán aplicar expresamente los permisos por evento. La asignación automática del creador no completa la protección de las demás rutas ni la administración de personal.
 
 OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperable: existe persistencia y confirmación de creación; la recuperación desde una función de consulta sigue pendiente en OE-02-002. No se declara completado ese recorrido de consulta.
+
+## Desglose de OE-02-002 — Consulta y edición
+
+| Parte | Alcance | Seguimiento |
+|---|---|---|
+| OE-02-002A | Listado paginado y detalle API para organizadores con autorización por evento. | Issue #27, rama `feat/27-event-query-api`. Implementación y pruebas específicas aprobadas; comprobación manual de lectura con sesión real aprobada. Validación global aprobada: 512 pruebas, typecheck, lint y build. Pendientes revisión final, PR, CI y merge. |
+| Posteriores | Pantalla web de consulta y edición autorizada. | Pendientes de planificación; sin Issue asignado en este registro. |
+
+A utiliza las asignaciones de OE-01-002B. Añade la recuperación mediante API; no completa la consulta desde una pantalla web ni toda la historia de edición. No se añaden estimaciones independientes.

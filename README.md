@@ -6,11 +6,11 @@ OpenEvents es una plataforma open source para gestionar la operación de eventos
 
 La web incorpora inicio y cierre de sesión con Microsoft Entra External ID mediante MSAL. La API valida access tokens y dispone de controles reutilizables de roles. La ruta protegida `GET /api/v1/auth/me` devuelve la identidad y los roles del usuario. El botón «Comprobar acceso» solicita un access token para la API y consulta esa ruta; se verificó manualmente el rol `organizer` con un token real.
 
-`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La asignación del creador en `event_staff` está implementada; su uso para autorizar consultas y ediciones sigue pendiente.
+`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La asignación del creador en `event_staff` está implementada; las consultas de organizadores ya utilizan esa asignación. La edición sigue pendiente.
 
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
-`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; consultar y editar con permisos por evento sigue pendiente.
+`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; la API permite listar y consultar los eventos asignados. La edición y la pantalla web de consulta siguen pendientes.
 
 ## Arquitectura inicial
 
@@ -384,7 +384,17 @@ Issue #25. La API vincula al creador autenticado con el evento mediante una iden
 
 Antes de arrancar con este cambio, aplica las migraciones con `pnpm --filter @openevents/api db:migrate`. La migración nueva conserva los datos existentes y permite nulos en el perfil del usuario.
 
-La creación y asignación se verificaron manualmente desde la web y PostgreSQL. Los eventos anteriores no se asignan automáticamente. No se implementan todavía consulta o edición con permisos por evento ni administración del personal. Véase [autenticación](docs/architecture/authentication.md).
+La creación y asignación se verificaron manualmente desde la web y PostgreSQL. Los eventos anteriores no se asignan automáticamente. La consulta con permisos por evento se incorpora en OE-02-002A; la edición y la administración del personal siguen pendientes. Véase [autenticación](docs/architecture/authentication.md).
+
+### Consulta de eventos — OE-02-002A
+
+Issue #27. `GET /api/v1/events` devuelve `{ items, nextCursor }`; `GET /api/v1/events/{eventId}` devuelve el detalle con el mismo formato de evento de la creación. Ambas rutas requieren token válido, rol de aplicación `organizer`, usuario local activo y asignación `organizer` en `event_staff` para cada evento devuelto.
+
+La lista usa `limit` (20 por defecto, máximo 100) y un `cursor` opcional. Se ordena por UUID ascendente, no por fecha. Un usuario sin identidad local o sin asignaciones obtiene una lista vacía; consultar un evento ajeno o inexistente devuelve el mismo 404. Las consultas no crean identidades ni asignaciones. Un usuario deshabilitado recibe 403.
+
+Se comprobaron 45 pruebas de validación, 41 HTTP aisladas, 16 de consulta con PostgreSQL y 12 HTTP con PostgreSQL. La comprobación manual con sesión real confirmó listado y detalle 200, falta de token 401, evento inexistente 404 y límite inválido 400. No había segunda página en esa cuenta; la paginación se verificó mediante pruebas automatizadas.
+
+Esta entrega no añade pantalla web de consulta, edición, migraciones ni recursos Azure. Validación global aprobada: 250 pruebas de API, 194 de web y 68 de integración PostgreSQL (512 en total), además de typecheck, lint y build. El cierre del PR sigue pendiente. Consulta el [contrato de API](docs/architecture/api-contract.md) para los errores y límites de paginación.
 
 ## Comandos
 

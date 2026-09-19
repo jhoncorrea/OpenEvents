@@ -11,16 +11,20 @@ import {
   type CreateEventOperation,
 } from "./modules/events/event-routes.js";
 
+import { registerEventQueryRoutes, type EventQueryOperations } from "./modules/events/event-query-routes.js";
+
 interface BuildAppOptions {
   logger?: boolean;
   verifyAccessToken: AccessTokenVerifier;
   createEvent: CreateEventOperation;
+  eventQueries?: EventQueryOperations;
 }
 
 export function buildApp({
   logger = false,
   verifyAccessToken,
   createEvent,
+  eventQueries,
 }: BuildAppOptions) {
   const app = Fastify({
     logger: logger
@@ -56,6 +60,10 @@ export function buildApp({
     verifyAccessToken,
     createEvent,
   });
+
+  if (eventQueries) {
+    registerEventQueryRoutes(app, verifyAccessToken, eventQueries);
+  }
 
   app.get("/api/events/current", async () => ({
     id: "devopsdays-lima-2027",

@@ -2,13 +2,13 @@
 
 Este documento describe la API objetivo del MVP. No todas las rutas ni convenciones aquí propuestas están implementadas.
 
-## Estado implementado — OE-01-002A/B y OE-02-001B/C
+## Estado implementado — OE-01-002A/B, OE-02-001B/C y OE-02-002A
 
 - `GET /health` es público.
 - `GET /api/v1/auth/me` requiere un access token válido para la API, la aplicación cliente permitida y el scope `access_as_user`. Devuelve la identidad y los roles reconocidos; no exige un rol específico.
 - `GET /api/events/current` y `POST /api/check-ins` son rutas demo que siguen abiertas.
 - `POST /api/v1/events` exige autenticación válida y el rol `organizer`, y crea un evento persistido en estado `draft`.
-- Se asigna al creador en `event_staff`; la autorización de consultas y ediciones por evento sigue pendiente.
+- Se asigna al creador en `event_staff`. `GET /api/v1/events` y `GET /api/v1/events/{eventId}` exigen organizer global y asignación organizer por evento; la edición sigue pendiente.
 
 La autenticación implementada responde con errores planos `{ code, message }` y estados 401, 403 o 500. El contenedor `error`, el campo `correlationId` y la convención `X-Correlation-Id` descritos más abajo siguen siendo parte del contrato objetivo.
 
@@ -125,6 +125,47 @@ OE-02-001C no incorporó GET de eventos, edición, activación, cierre, asignaci
 ## Asignación del organizador — OE-01-002B
 
 El Issue #25 añade identidad local y asignación transaccional sin modificar los seis campos de entrada ni la respuesta 201. Los usuarios locales deshabilitados reciben 403. Los eventos anteriores sin asignación permanecen sin asignación automática. Consulta [la identidad local y sus límites](authentication.md#identidad-local-y-asignación-del-creador--oe-01-002b).
+
+## Consulta de eventos implementada — OE-02-002A
+
+Seguimiento: Issue #27. Las dos rutas GET exigen las validaciones existentes de Bearer, cliente y scope, además del rol de aplicación `organizer`. No hay privilegios implícitos para `admin` ni acceso de consulta para `checkin_operator` en esta entrega. La tabla del contrato objetivo más abajo describe capacidades futuras.
+
+### Listado
+
+`GET /api/v1/events?limit=20&cursor=<cursor>`
+
+| Parámetro | Regla |
+|---|---|
+| `limit` | Opcional. Entero decimal de 1 a 100, predeterminado 20. No admite ceros iniciales, espacios, decimales, notación exponencial o valores repetidos. |
+| `cursor` | Opcional. Cadena base64url canónica, sin relleno, máximo 100 caracteres. Se utiliza el `nextCursor` devuelto por la página anterior. |
+
+No se admiten otros parámetros. Una respuesta 200 contiene `items` (eventos con los mismos nueve campos de la respuesta de creación) y `nextCursor` (cadena o null). Una lista vacía devuelve `{ "items": [], "nextCursor": null }`.
+
+El orden es `event.id ASC`, comparado como UUID en PostgreSQL. El cursor v1 codifica el último UUID; la siguiente página busca IDs mayores. No es un orden cronológico, una firma ni una credencial. Manipular o reutilizar un cursor nunca sustituye las comprobaciones de autorización. Se lee un elemento adicional para decidir si existe una página siguiente.
+
+La paginación no conserva una instantánea entre solicitudes: altas, bajas o cambios de asignación pueden cambiar páginas posteriores. Un evento nuevo con UUID anterior al cursor no aparecerá hasta reiniciar el listado. El cursor no contiene fechas ni perfiles; no se devuelve un total.
+
+### Detalle
+
+`GET /api/v1/events/{eventId}`
+
+El identificador debe ser UUID; se normaliza a minúsculas. No se admiten parámetros de consulta. Devuelve directamente el evento y fechas ISO UTC, sin perfil del usuario ni registros de asignación. Se permiten todos los estados persistidos del evento, no solo draft.
+
+### Autorización y errores
+
+La identidad local usa tenant y objeto del token verificado. La lectura no aprovisiona usuarios. Una identidad local inexistente obtiene lista vacía o 404 de detalle. Una identidad deshabilitada recibe 403. Las consultas filtran en SQL por el usuario local y el rol organizer de su asignación.
+
+| HTTP | Código | Situación |
+|---|---|---|
+| 400 | `INVALID_EVENT_QUERY` | Identificador, límite, cursor o parámetros no válidos. |
+| 401 | `UNAUTHORIZED` | Falta de token o identidad no válida. |
+| 403 | `FORBIDDEN` | Cliente, scope, rol global no permitido o usuario local deshabilitado. |
+| 404 | `EVENT_NOT_FOUND` | Detalle inexistente o no autorizado, con el mismo mensaje: «No se encontró el evento.» |
+| 500 | `INTERNAL_SERVER_ERROR` | Fallo operativo de autenticación o consulta. |
+
+Los errores usan `{ code, message }`. El control de acceso añade `Cache-Control: no-store`; las respuestas 401 añaden `WWW-Authenticate: Bearer`. La autenticación precede a la validación de parámetros. Los fallos de consulta se registran únicamente con `EVENT_QUERY_FAILED` y mensaje genérico, sin SQL ni error original.
+
+Se usa una transacción y `FOR SHARE` sobre el usuario existente para mantener estable su estado durante la lectura. La asignación se comprueba al ejecutar cada SELECT; no se garantiza que permanezca después de completar la solicitud. No se añaden migraciones, edición ni interfaz web. El servidor conecta ambas operaciones a PostgreSQL; `buildApp` permite omitir conjuntamente las operaciones de consulta en pruebas aisladas de otras funciones.
 
 ## Contrato objetivo del MVP
 

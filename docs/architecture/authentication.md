@@ -235,3 +235,15 @@ Pasaron 12 pruebas de la operación, 3 de concurrencia con conexiones independie
 La comprobación manual creó `prueba-organizador-001` desde la web con una sesión real. El identificador mostrado coincidió con PostgreSQL y la consulta devolvió una asignación `organizer` para el evento en estado `draft`.
 
 Las pruebas HTTP de integración utilizan tokens simulados y PostgreSQL real. Las pruebas con una conexión revierten una transacción exterior de Drizzle; las de concurrencia hacen commits y eliminan únicamente sus registros de prueba.
+
+## Consulta autorizada por evento — OE-02-002A
+
+Issue #27 añade GET de listado y detalle. Se exige `organizer` en el token y en `event_staff`, junto con usuario local activo. Admin y operador no tienen acceso implícito. La identidad se resuelve con `entra:<tenantId>:<objectId>` normalizado, nunca con parámetros del cliente, correo o sub.
+
+Las consultas no crean usuarios ni asignaciones. Sin usuario local, la lista está vacía y el detalle devuelve 404. Con usuario deshabilitado, ambas operaciones devuelven 403. La fila local se bloquea con FOR SHARE durante la transacción de lectura; cada consulta filtra las asignaciones autorizadas en SQL.
+
+Detalle ajeno e inexistente tienen idéntica respuesta 404. El cursor de listado solo define una posición; no concede permisos. La API no devuelve perfiles ni asignaciones. Los eventos antiguos sin asignación continúan fuera del listado.
+
+El bloqueo local ahora cubre creación y estas consultas. `/api/v1/auth/me` sigue devolviendo claims sin consultar el estado local; las rutas demo conservan su comportamiento. La edición y administración de personal siguen pendientes.
+
+Validación: 41 pruebas HTTP aisladas, 16 de operaciones PostgreSQL y 12 HTTP con PostgreSQL. Estas últimas simulan el verificador de Entra. La prueba manual con token real recuperó `prueba-organizador-001` y confirmó respuestas 200, 401, 404 y 400. No se probó manualmente otra cuenta ni una segunda página; el aislamiento y la paginación están cubiertos automáticamente.

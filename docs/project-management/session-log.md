@@ -204,3 +204,40 @@ OE-02-001C se integró mediante PR #24, merge `9abbb99`; CI de PR y main aprobad
 - No hay asignación retroactiva de eventos, auditoría completa ni recursos Azure nuevos.
 - Validación global aprobada: 164 pruebas de API, 194 de web y 40 de integración PostgreSQL; 398 en total. Typecheck, lint, build y git diff --check aprobados.
 - Pendientes revisión de los archivos preparados para commit, commit, PR, CI y merge.
+
+## Sesión 006 — 19 de septiembre de 2026
+
+**Objetivo:** OE-02-002A, consultar eventos con autorización por evento.
+**Issue:** #27.
+**Rama:** `feat/27-event-query-api`.
+
+### Cierre anterior
+
+Issue #25 integrado mediante PR #26, commit de merge `9fab3f8`. El mantenedor confirmó CI verde en PR y main; copia local sincronizada y rama anterior eliminada.
+
+### Resultado
+
+- GET de listado y detalle conectado a PostgreSQL.
+- Organizer global y por evento, identidad local activa, aislamiento por tenant/objeto.
+- Lista vacía para identidad no aprovisionada; sin escrituras de usuarios o asignaciones.
+- Paginación por UUID ascendente, 20 elementos predeterminados y máximo 100, cursor versionado.
+- Respuestas genéricas controladas y 404 indistinguible para evento ajeno o inexistente.
+- Sin nueva migración ni pantalla web de consulta.
+
+### Validación realizada
+
+- 45 pruebas de entradas y cursores aprobadas.
+- 16 pruebas de operación PostgreSQL aprobadas.
+- 41 pruebas HTTP de consulta aprobadas; 82 junto con creación, autenticación y salud.
+- 12 pruebas HTTP PostgreSQL aprobadas, incluido fallo real de lectura sin exposición de detalles.
+- Typecheck y lint de API aprobados en las ejecuciones específicas.
+- Comprobación manual con sesión real: listado y detalle 200 para `prueba-organizador-001`, ID `a4f7de46-61b4-4fb0-955f-cccbf6774705`; ausencia de token 401, evento inexistente 404 y límite 101 rechazado con 400.
+- No había segunda página en la cuenta manual. Paginación y acceso entre cuentas cubiertos por pruebas automatizadas con verificador simulado.
+
+### Límites y pendientes
+
+- Comprobador temporal `apps/web/src/issue27-smoke.ts` retirado tras la validación manual.
+- Validación global aprobada: 250 pruebas de API, 194 de web y 68 de integración PostgreSQL; 512 en total. Typecheck, lint y build aprobados.
+- Pendientes comprobación final de espacios, revisión del diff, commit/PR, CI y merge.
+- Consulta web, edición, acceso de operadores, administración de personal, auditoría y Azure pendientes.
+- La paginación no es una instantánea y no tiene orden cronológico. auth/me y rutas demo conservan su comportamiento.
