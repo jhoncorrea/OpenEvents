@@ -247,3 +247,13 @@ Detalle ajeno e inexistente tienen idéntica respuesta 404. El cursor de listado
 El bloqueo local ahora cubre creación y estas consultas. `/api/v1/auth/me` sigue devolviendo claims sin consultar el estado local; las rutas demo conservan su comportamiento. La edición y administración de personal siguen pendientes.
 
 Validación: 41 pruebas HTTP aisladas, 16 de operaciones PostgreSQL y 12 HTTP con PostgreSQL. Estas últimas simulan el verificador de Entra. La prueba manual con token real recuperó `prueba-organizador-001` y confirmó respuestas 200, 401, 404 y 400. No se probó manualmente otra cuenta ni una segunda página; el aislamiento y la paginación están cubiertos automáticamente.
+
+## Consultas desde la web — OE-02-002B
+
+Issue #29 añade «Mis eventos» únicamente tras comprobar `organizer`. La API conserva la autorización definitiva por evento; ni la visibilidad del componente ni un cursor conceden permisos.
+
+El cliente usa la cuenta seleccionada y `acquireTokenSilent`. Si se requiere interacción, no redirige automáticamente y solicita comprobar nuevamente el acceso. Los errores de autenticación, 401 y 403 invalidan el acceso comprobado y limpian listado y detalle. `/api/v1/auth/me` sigue sin consultar el estado del usuario local.
+
+El componente se desmonta cuando pierde acceso o la sesión está ocupada. Cancela las solicitudes pendientes y descarta respuestas tardías, también al cambiar de cuenta. Volver desde un detalle pendiente cancela esa consulta. Los eventos consultados permanecen solo en memoria; los borradores del formulario mantienen su mecanismo separado por cuenta.
+
+Las pruebas del cliente (43), de «Mis eventos» (18) y de sesión (24, con 8 nuevas) cubren errores, aislamiento, cancelación y recarga tras creación. Las pruebas web simulan MSAL y la API. La comprobación manual confirmó listado y detalle con la cuenta organizer real; no se declara una prueba manual entre dos cuentas.
