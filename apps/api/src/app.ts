@@ -13,11 +13,14 @@ import {
 
 import { registerEventQueryRoutes, type EventQueryOperations } from "./modules/events/event-query-routes.js";
 
+import { registerEventEditRoutes, type EditEventOperation } from "./modules/events/event-edit-routes.js";
+
 interface BuildAppOptions {
   logger?: boolean;
   verifyAccessToken: AccessTokenVerifier;
   createEvent: CreateEventOperation;
   eventQueries?: EventQueryOperations;
+  editEvent?: EditEventOperation;
 }
 
 export function buildApp({
@@ -25,6 +28,7 @@ export function buildApp({
   verifyAccessToken,
   createEvent,
   eventQueries,
+  editEvent,
 }: BuildAppOptions) {
   const app = Fastify({
     logger: logger
@@ -38,6 +42,7 @@ export function buildApp({
 
   app.register(cors, {
     origin: ["http://localhost:5173"],
+    methods: ["GET", "HEAD", "POST", "PATCH"],
   });
 
   app.get("/health", async () => ({
@@ -60,6 +65,8 @@ export function buildApp({
     verifyAccessToken,
     createEvent,
   });
+
+  if (editEvent) registerEventEditRoutes(app, verifyAccessToken, editEvent);
 
   if (eventQueries) {
     registerEventQueryRoutes(app, verifyAccessToken, eventQueries);

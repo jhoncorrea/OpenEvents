@@ -1,3 +1,4 @@
+import { editEventForOrganizer } from "./modules/events/edit-event-for-organizer.js";
 import { listEventsForOrganizer, getEventForOrganizer } from "./modules/events/query-events-for-organizer.js";
 import { buildApp } from "./app.js";
 import { parseAuthConfig } from "./auth-config.js";
@@ -27,6 +28,7 @@ const database = createDatabaseConnection({
 
 const app = buildApp({
   logger: true,
+  editEvent: (id, input, actor) => editEventForOrganizer(database.db, id, input, actor),
   eventQueries: {
     list: (input, actor) => listEventsForOrganizer(database.db, input, actor),
     get: (id, actor) => getEventForOrganizer(database.db, id, actor),

@@ -81,7 +81,7 @@ describe("POST /api/v1/events", () => {
     createEvent = vi.fn<CreateEventOperation>(async (input) => ({
       ...parseCreateEventInput(input),
       id: eventId,
-      status: "draft",
+      status: "draft", version: 1,
       createdAt,
     }));
 
@@ -114,7 +114,7 @@ describe("POST /api/v1/events", () => {
       endsAt: "2027-08-27T22:00:00.000Z",
       timezone: validInput.timezone,
       location: validInput.location,
-      status: "draft",
+      status: "draft", version: 1,
       createdAt: "2026-09-18T18:00:00.000Z",
     });
     expect(verifyAccessToken).toHaveBeenCalledExactlyOnceWith(

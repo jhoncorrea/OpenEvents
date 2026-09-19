@@ -31,6 +31,7 @@ erDiagram
         timestamptz ends_at
         string timezone
         string location
+        int version
         string status
         timestamptz created_at
     }
@@ -96,6 +97,7 @@ erDiagram
 | `UNIQUE(token_hash)` en `qr_credential` | Evitar credenciales repetidas |
 | `UNIQUE(registration_id)` en `check_in` | Garantizar un solo ingreso en el MVP |
 | `PRIMARY KEY(event_id, user_id)` en `event_staff` | Evitar asignaciones duplicadas |
+| `event.version` integer NOT NULL DEFAULT 1 y CHECK > 0 | Versión persistida para detectar ediciones desactualizadas |
 | Fechas en `timestamptz` y UTC | Consistencia entre zonas horarias |
 
 ## 3. Decisiones
@@ -182,3 +184,9 @@ La API identifica al usuario mediante `entra:<tenantId>:<objectId>` en `external
 La creación HTTP inserta evento y `event_staff` con rol `organizer` en una transacción, junto con el usuario si es nuevo. Una asignación fallida no deja el evento guardado. Las solicitudes concurrentes reutilizan la identidad y la unicidad de slug conserva un único ganador.
 
 No se asignan automáticamente eventos anteriores ni se convierten identidades antiguas de otros formatos. Su asociación exige una revisión explícita. Consulta [autenticación](authentication.md) para el alcance y las limitaciones.
+
+## Versión de eventos — OE-02-002C
+
+La migración `0002_brief_jocasta.sql` añade `event.version` con valor inicial 1 para eventos existentes y nuevos, sin eliminar registros. Se versionan SQL, snapshot 0002 y journal juntos. Aplicar la migración antes de ejecutar código que seleccione la nueva columna.
+
+Cada PATCH aceptado incrementa version en uno dentro de la misma transacción que los datos. Version no representa fecha, estado, identidad ni historial de auditoría. No hay trigger que incremente la versión ante SQL directo: los futuros escritores deben participar explícitamente en este protocolo. Se reservan valores de entrada hasta 2147483646 para que el incremento quepa en integer; alcanzar el límite requerirá evolución del esquema.

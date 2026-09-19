@@ -6,11 +6,11 @@ OpenEvents es una plataforma open source para gestionar la operación de eventos
 
 La web incorpora inicio y cierre de sesión con Microsoft Entra External ID mediante MSAL. La API valida access tokens y dispone de controles reutilizables de roles. La ruta protegida `GET /api/v1/auth/me` devuelve la identidad y los roles del usuario. El botón «Comprobar acceso» solicita un access token para la API y consulta esa ruta; se verificó manualmente el rol `organizer` con un token real.
 
-`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La asignación del creador en `event_staff` está implementada; las consultas de organizadores ya utilizan esa asignación. La edición sigue pendiente.
+`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La asignación del creador en `event_staff` está implementada; las consultas y la edición de borradores en API utilizan esa asignación. La edición web sigue pendiente.
 
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
-`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; la API permite listar y consultar los eventos asignados. La web permite listar y consultar esos eventos; la edición sigue pendiente.
+`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; la API permite listar y consultar los eventos asignados. La web permite listar y consultar esos eventos. La API permite editar borradores con control de versión; el formulario de edición sigue pendiente.
 
 ## Arquitectura inicial
 
@@ -408,7 +408,21 @@ El formulario, «Mis eventos» y el cliente de consultas usan carga diferida. La
 
 Validación global local: 250 pruebas de API, 263 de web y 68 de integración PostgreSQL (581 en total), typecheck, lint y build aprobados. Después del ajuste de carga se repitieron 108 pruebas relacionadas, typecheck y lint web; el build final y `git diff --check` también pasaron. Se comprobó manualmente el listado, detalle, fechas de Lima y vuelta al listado con una sesión real. Paginación, cambios de cuenta, cancelaciones y recarga tras creación están cubiertos por pruebas automatizadas; no se declara su comprobación manual.
 
-La entrega no añade edición, migraciones ni endpoints. Las rutas demo conservan su alcance público. Pendientes revisión final, PR, CI y merge de #29.
+La entrega no añade edición, migraciones ni endpoints. Las rutas demo conservan su alcance público. Issue #29 integrado mediante PR #30, merge `d91995d`; CI aprobado según comprobación del mantenedor.
+
+### Edición de borradores en API — OE-02-002C
+
+Issue #31. `PATCH /api/v1/events/{eventId}` permite cambiar parcialmente nombre, slug, inicio, fin, zona horaria y ubicación. Exige token válido, organizer global, usuario local activo y asignación organizer al evento. Solo admite eventos `draft`; no permite cambiar estado, identidad ni asignaciones.
+
+El cliente envía `expectedVersion` y al menos un campo editable. Las respuestas de creación, listado, detalle y edición incluyen ahora `version`. Los eventos nuevos y existentes comienzan en 1; cada PATCH aceptado incrementa la versión, incluso si los valores enviados coinciden con los actuales. Una versión antigua devuelve 409 sin sobrescribir cambios. Cambiar solo la zona horaria conserva los instantes UTC; para cambiar la hora del evento deben enviarse las fechas correspondientes.
+
+Antes de arrancar el código actualizado, aplica `pnpm --filter @openevents/api db:migrate`. La migración `0002_brief_jocasta.sql` añade la versión obligatoria y positiva sin eliminar eventos. La web actual tolera el campo adicional, pero todavía no implementa edición ni conserva la versión para editar.
+
+Validación local: 321 pruebas API, 263 web y 109 de integración PostgreSQL (693 en total), typecheck, lint, build y revisión de espacios aprobados. La comprobación manual con token real confirmó 401 sin token, creación 201, edición 200, rechazo de versión antigua 409, intervalo inválido 400 y consulta final 200 con versión 2. El comprobador temporal fue retirado. Los conflictos simultáneos se probaron con conexiones independientes.
+
+La actualización bloquea usuario y asignación en modo compartido y el evento para escritura durante la transacción. Se conserva el mismo 404 para evento ajeno e inexistente. Los tres conflictos de negocio usan códigos 409 distintos. Véase el [contrato](docs/architecture/api-contract.md) y los ADR [005](docs/adr/ADR-005-edicion-parcial-de-borradores.md), [006](docs/adr/ADR-006-version-y-concurrencia-de-eventos.md) y [007](docs/adr/ADR-007-autorizacion-transaccional-de-edicion.md).
+
+No se añade formulario web, activación/cierre, auditoría de cambios ni recursos Azure. CI del PR y merge pendientes.
 
 ## Comandos
 

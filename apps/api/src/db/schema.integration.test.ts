@@ -94,6 +94,25 @@ describe("PostgreSQL schema constraints", () => {
     await client.query("ROLLBACK");
   });
 
+  it("initializes an event version to one", async () => {
+    const result = await client.query(
+      'SELECT version FROM "event" WHERE id = $1', [eventId],
+    );
+    expect(result.rows).toEqual([{ version: 1 }]);
+  });
+
+  it.each([0, -1])("rejects nonpositive event version %s", async (version) => {
+    await expect(client.query(
+      'UPDATE "event" SET version = $1 WHERE id = $2', [version, eventId],
+    )).rejects.toMatchObject({ code: "23514", constraint: "event_version_positive" });
+  });
+
+  it("rejects a null event version", async () => {
+    await expect(client.query(
+      'UPDATE "event" SET version = NULL WHERE id = $1', [eventId],
+    )).rejects.toMatchObject({ code: "23502" });
+  });
+
   it("rejects a duplicate registration for the same event", async () => {
     await expect(
       client.query(

@@ -15,7 +15,7 @@ function serialize(event: QueriedEvent) {
     id: event.id, name: event.name, slug: event.slug,
     startsAt: event.startsAt.toISOString(), endsAt: event.endsAt.toISOString(),
     timezone: event.timezone, location: event.location, status: event.status,
-    createdAt: event.createdAt.toISOString(),
+    createdAt: event.createdAt.toISOString(), version: event.version,
   };
 }
 

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -59,11 +60,14 @@ export const events = pgTable(
 
     status: eventStatus("status").notNull().default("draft"),
 
+    version: integer("version").notNull().default(1),
+
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
+    check("event_version_positive", sql`${table.version} > 0`),
     check(
       "event_dates_check",
       sql`${table.endsAt} > ${table.startsAt}`,
