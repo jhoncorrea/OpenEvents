@@ -104,9 +104,23 @@ Se utiliza la tabla `event` y las migraciones existentes. La operación interna 
 
 `DATABASE_URL` es obligatoria en el servidor. Antes de escuchar se comprueba PostgreSQL con `SELECT 1`; las migraciones se aplican por separado. El pool se libera al cerrar Fastify.
 
-La ruta no asigna al creador a `event_staff` ni registra una auditoría completa. El formulario web y las demás operaciones de eventos quedan pendientes.
+La ruta no asigna al creador a `event_staff` ni registra una auditoría completa. El formulario web se incorpora en OE-02-001C (Issue #23); las demás operaciones de eventos siguen pendientes.
 
 Las pruebas HTTP aisladas simulan persistencia. Las de integración utilizan PostgreSQL real y un verificador de tokens simulado, con una transacción que se revierte por prueba.
+
+## Consumo desde la web — OE-02-001C
+
+El Issue #23 incorpora el formulario sin modificar el contrato HTTP de OE-02-001B. La web comprueba `organizer` mediante `/api/v1/auth/me` antes de habilitarlo; la API sigue autorizando cada POST.
+
+- El formulario recoge los seis campos permitidos. Convierte las horas de la zona seleccionada a UTC antes del envío y rechaza horas inexistentes o ambiguas.
+- El cliente obtiene un access token mediante MSAL. Si requiere interacción, no envía la creación y solicita comprobar nuevamente el acceso.
+- Una respuesta 201 con formato válido muestra el evento devuelto y su estado draft.
+- Los errores 400, 401, 403 y 409 muestran mensajes controlados. Un 409 conserva los campos y señala el slug.
+- Un fallo de red, 500 o respuesta inesperada se trata como resultado incierto: el evento podría haberse guardado. No se reintenta automáticamente.
+- Bloquear envíos simultáneos en la interfaz no añade idempotencia a la API. El conflicto de slug no devuelve el evento existente ni demuestra por sí solo que corresponda al envío anterior.
+- Los borradores por cuenta se guardan en sessionStorage, sin tokens, y se recuperan tras recarga. Se eliminan tras creación confirmada o antes del cierre de sesión.
+
+No se incorporan GET de eventos, edición, activación, cierre, asignación event_staff ni auditoría completa. La protección de las demás funciones web sigue pendiente.
 
 ## Contrato objetivo del MVP
 
