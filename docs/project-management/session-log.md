@@ -168,3 +168,39 @@ Las pruebas de interfaz simulan MSAL y llamadas de API. Las comprobaciones manua
 - Revisar el diff completo, la documentación y los archivos que se incluirán en el commit.
 - Ejecutar git diff --check sobre la documentación final.
 - Crear commit y PR, comprobar CI y completar el merge.
+
+## Sesión 005 — 19 de septiembre de 2026
+
+**Objetivo:** OE-01-002B, vincular al organizador con los eventos que crea.
+**Issue:** #25.
+**Rama:** `feat/25-event-organizer-assignment`.
+
+### Cierre de la entrega anterior
+
+OE-02-001C se integró mediante PR #24, merge `9abbb99`; CI de PR y main aprobado. La copia local se actualizó a main y se eliminó la rama anterior antes de crear la rama de esta sesión.
+
+### Resultado
+
+- Migración para permitir correo y nombre nulos en el usuario, sin inventar datos de perfil.
+- Identidad local basada en tenant y objeto de Entra; no se utiliza el correo para asociar permisos.
+- Creación de evento y asignación organizer en una transacción, junto con el usuario nuevo si corresponde.
+- Reutilización de usuarios y bloqueo de cuentas locales deshabilitadas, sin reactivación automática.
+- Conexión de la ruta HTTP a la nueva operación; identidad tomada del token verificado.
+- Tratamiento documentado de eventos e identidades anteriores sin asociación automática.
+
+### Validación realizada
+
+- Migración aplicada y 10 pruebas del esquema aprobadas.
+- 12 pruebas de la operación y 3 de concurrencia aprobadas.
+- 24 pruebas HTTP aisladas de eventos, 16 de autenticación y 1 de salud aprobadas.
+- 10 pruebas HTTP con PostgreSQL aprobadas, incluidos usuario deshabilitado y reversión por fallo de asignación.
+- Typecheck y lint de API aprobados en las ejecuciones específicas.
+- Comprobación manual con sesión real: evento `prueba-organizador-001` creado desde la web; ID coincidente y una asignación organizer confirmados en PostgreSQL.
+
+### Límites y pendientes
+
+- No se añaden consulta, edición ni administración de personal; la autorización de esas operaciones por evento sigue pendiente.
+- auth/me no consulta el estado local; el usuario deshabilitado queda bloqueado al crear eventos.
+- No hay asignación retroactiva de eventos, auditoría completa ni recursos Azure nuevos.
+- Validación global aprobada: 164 pruebas de API, 194 de web y 40 de integración PostgreSQL; 398 en total. Typecheck, lint, build y git diff --check aprobados.
+- Pendientes revisión de los archivos preparados para commit, commit, PR, CI y merge.

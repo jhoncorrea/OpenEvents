@@ -30,8 +30,8 @@ export const users = pgTable("user", {
     .notNull()
     .unique("user_external_subject_unique"),
 
-  email: text("email").notNull(),
-  displayName: text("display_name").notNull(),
+  email: text("email"),
+  displayName: text("display_name"),
 
   status: userStatus("status").notNull().default("active"),
 

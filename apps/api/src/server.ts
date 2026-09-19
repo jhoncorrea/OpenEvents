@@ -6,7 +6,7 @@ import {
   parseDatabaseConfig,
 } from "./config.js";
 import { createDatabaseConnection } from "./db/connection.js";
-import { createEvent } from "./modules/events/create-event.js";
+import { createEventForOrganizer } from "./modules/events/create-event-for-organizer.js";
 
 const { port, host } = parseApiConfig(process.env);
 const authConfig = parseAuthConfig(process.env);
@@ -27,7 +27,8 @@ const database = createDatabaseConnection({
 const app = buildApp({
   logger: true,
   verifyAccessToken,
-  createEvent: (input) => createEvent(database.db, input),
+  createEvent: (input, actor) =>
+    createEventForOrganizer(database.db, input, actor),
 });
 
 app.addHook("onClose", async () => {

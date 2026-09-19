@@ -23,7 +23,7 @@ Límites actuales:
 - `GET /api/events/current` y `POST /api/check-ins` son rutas demo sin autenticación.
 - La interfaz demo sigue visible sin iniciar sesión.
 - Las demás operaciones HTTP de eventos y la protección de las demás funciones web siguen pendientes.
-- No está implementada la autorización por evento mediante `event_staff`.
+- Se guarda la asignación del creador en `event_staff`; la autorización de futuras consultas y ediciones por evento sigue pendiente.
 - Los roles de aplicación no conceden automáticamente acceso a un evento concreto.
 
 ## Configuración de la API
@@ -178,7 +178,7 @@ Si falla el guardado se bloquean la creación y la comprobación que podría red
 
 Los errores 401/403 o de adquisición del token invalidan el permiso comprobado en la interfaz. Un 409 conserva los campos. Los fallos de red, 500 y respuestas inesperadas se consideran resultados inciertos; no hay reintentos automáticos ni garantía de idempotencia. El usuario debe verificar el resultado antes de reenviar.
 
-La carga diferida del formulario reduce el JavaScript inicial y muestra un estado de carga o un mensaje para recargar si falla su descarga. Este comportamiento no amplía el alcance de las rutas demo ni implementa `event_staff`.
+La carga diferida del formulario reduce el JavaScript inicial y muestra un estado de carga o un mensaje para recargar si falla su descarga. La carga diferida no amplía el alcance de las rutas demo. La asignación del creador en la API se incorpora en OE-01-002B.
 
 ## Validación
 
@@ -204,3 +204,34 @@ Comprobación manual realizada:
 Esta comprobación confirma el acceso a `/api/v1/auth/me` con un token real. No demuestra autorización por evento ni protección de las rutas demo.
 
 En OE-02-001C se comprobó además la creación desde el formulario con token real y rol `organizer`, el conflicto de slug conservando los campos, la recuperación del borrador tras recarga y su limpieza al cerrar sesión. No se realizó una prueba manual de renovación interactiva forzada ni de fallo de red durante el POST.
+
+## Identidad local y asignación del creador — OE-01-002B
+
+Seguimiento: Issue #25, rama `feat/25-event-organizer-assignment`.
+
+La creación HTTP utiliza `createEventForOrganizer`. La identidad procede del access token verificado, no del cuerpo de la solicitud. Se exige el rol global `organizer`, sin jerarquía implícita para `admin`.
+
+- `user.external_subject` guarda `entra:<tenantId>:<objectId>` con ambos UUID en minúsculas. El correo y `sub` no se utilizan para asociar permisos. Un cambio de `sub` no crea otro usuario si se mantienen tenant y objeto.
+- La restricción única de identidad y `ON CONFLICT DO NOTHING` permiten reutilizar al usuario sin modificar su perfil ni reactivar una cuenta deshabilitada.
+- Se bloquea la fila del usuario mediante `SELECT ... FOR UPDATE` y se comprueba su estado. Un usuario `disabled` recibe 403 `FORBIDDEN` al crear.
+- El usuario nuevo, el evento en `draft` y su asignación `organizer` en `event_staff` se guardan dentro de una transacción. Un fallo o conflicto revierte las escrituras de esa operación; las filas anteriores se conservan.
+- Los usuarios nuevos tienen correo y nombre nulos. La migración `0001_absent_tigra.sql` permite esos nulos y conserva los datos existentes. No cambia el correo obligatorio de los asistentes.
+- El cuerpo y la respuesta de creación conservan su formato; no se acepta un creador elegido por el cliente. No se devuelve el perfil local en la respuesta.
+
+### Datos anteriores y límites
+
+Los eventos existentes sin `event_staff` permanecen sin asignación. No se atribuyen al siguiente usuario que inicia sesión o crea un evento. Antes de habilitar su gestión deberán asignarse mediante un procedimiento explícito que verifique al responsable. Esta entrega no implementa ese procedimiento.
+
+Los valores antiguos de `external_subject` no se convierten ni se relacionan automáticamente por correo. Cualquier identidad anterior con otro formato requiere una revisión explícita antes de asociarla a una identidad de Entra.
+
+`GET /api/v1/auth/me` continúa devolviendo los claims y roles verificados; no consulta el estado del usuario local. Por ello puede mostrar `organizer` aunque la creación responda 403 por usuario deshabilitado. El bloqueo local de esta entrega se aplica a la creación de eventos, no a todas las rutas.
+
+Guardar la asignación prepara la autorización por evento, pero todavía no implementa consultas o ediciones que la apliquen. No se añaden pantallas de administración de personal, auditoría completa ni recursos Azure. Las rutas demo conservan su comportamiento.
+
+### Evidencia
+
+Pasaron 12 pruebas de la operación, 3 de concurrencia con conexiones independientes y 10 HTTP con PostgreSQL. También pasaron 24 pruebas HTTP aisladas de eventos, 16 del control de autenticación y 1 de salud; typecheck y lint aprobados en las ejecuciones correspondientes.
+
+La comprobación manual creó `prueba-organizador-001` desde la web con una sesión real. El identificador mostrado coincidió con PostgreSQL y la consulta devolvió una asignación `organizer` para el evento en estado `draft`.
+
+Las pruebas HTTP de integración utilizan tokens simulados y PostgreSQL real. Las pruebas con una conexión revierten una transacción exterior de Drizzle; las de concurrencia hacen commits y eliminan únicamente sus registros de prueba.
