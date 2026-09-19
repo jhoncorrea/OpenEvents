@@ -10,7 +10,7 @@ La web incorpora inicio y cierre de sesión con Microsoft Entra External ID medi
 
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
-`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. El formulario web y la autorización por evento mediante `event_staff` siguen pendientes.
+`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La autorización por evento mediante `event_staff` sigue pendiente.
 
 ## Arquitectura inicial
 
@@ -46,7 +46,7 @@ Código QR de demostración: `OE-2027-001`.
 
 La API exige las cinco variables `ENTRA_*` y `DATABASE_URL` indicadas en la tabla. Valida la configuración y comprueba la conexión a PostgreSQL antes de escuchar solicitudes. El archivo `.env` es opcional si las variables ya están proporcionadas por el entorno. `PORT` y `HOST` conservan sus valores predeterminados.
 
-La web requiere las cinco variables `VITE_ENTRA_*`, incluido el scope de la API. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. Configura también `VITE_API_URL`: la consulta de identidad no aplica un valor predeterminado.
+La web requiere las cinco variables `VITE_ENTRA_*`, incluido el scope de la API. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. Configura también `VITE_API_URL`: los clientes de identidad y creación no aplican un valor predeterminado.
 
 Para crear los archivos locales en PowerShell, ejecuta los siguientes comandos solamente si los archivos de destino todavía no existen. Si ya existen, edítalos conservando su configuración:
 
@@ -66,7 +66,7 @@ El primer comando crea la configuración local de la API a partir de su ejemplo.
 | API | `ENTRA_WEB_CLIENT_ID` | Sin valor predeterminado | UUID de la aplicación cliente permitida. |
 | API | `ENTRA_ISSUER` | Sin valor predeterminado | Emisor esperado; URL HTTPS sin credenciales, query ni fragmento. |
 | API | `ENTRA_JWKS_URI` | Sin valor predeterminado | URL HTTPS de las claves públicas de Entra. |
-| Web | `VITE_API_URL` | Sin valor predeterminado para la consulta de identidad | URL base de la API; en desarrollo, `http://localhost:3001`. Para consultar identidad admite HTTPS o HTTP en localhost. |
+| Web | `VITE_API_URL` | Sin valor predeterminado para identidad y creación | URL base de la API; en desarrollo, `http://localhost:3001`. Para consultar identidad y crear eventos admite HTTPS o HTTP en localhost, sin credenciales, consulta ni fragmento. |
 | API / herramientas de base de datos | `DATABASE_URL` | Sin valor predeterminado | URL de PostgreSQL requerida para arrancar la API, aplicar migraciones y ejecutar pruebas de integración. |
 | Web | `VITE_ENTRA_CLIENT_ID` | Sin valor predeterminado | Identificador de la aplicación web registrada como SPA en Entra. |
 | Web | `VITE_ENTRA_TENANT_ID` | Sin valor predeterminado | Identificador del tenant externo de Entra. |
@@ -122,7 +122,7 @@ El botón «Cerrar sesión» inicia la salida mediante Entra y utiliza la URL co
 
 MSAL utiliza `sessionStorage` como caché. La aplicación recupera la cuenta disponible al recargar la misma pestaña.
 
-Los botones de sesión y comprobación de acceso comparten un bloqueo para evitar operaciones simultáneas. Los fallos muestran mensajes controlados sin presentar tokens ni errores originales de Entra o de la API al usuario.
+Los botones de sesión, comprobación de acceso y creación comparten un bloqueo para evitar operaciones simultáneas. Los fallos muestran mensajes controlados sin presentar tokens ni errores originales de Entra o de la API al usuario.
 
 #### Validación
 
@@ -141,7 +141,7 @@ Las pruebas y la compilación no necesitan iniciar sesión en Azure. Para utiliz
 
 #### Alcance pendiente
 
-La sesión web y la consulta protegida de identidad están implementadas. La interfaz de demostración sigue visible sin iniciar sesión y sus endpoints continúan abiertos. La protección de rutas web y la autorización de las demás operaciones de negocio están pendientes. La creación HTTP de eventos ya exige el rol `organizer`.
+La sesión web y la consulta protegida de identidad están implementadas. La interfaz de demostración sigue visible sin iniciar sesión y sus endpoints continúan abiertos. El formulario de creación está restringido en la web; la protección de las demás funciones operativas y su autorización siguen pendientes. La creación HTTP de eventos ya exige el rol `organizer`.
 
 ### Autenticación de API — OE-01-002A
 
@@ -347,6 +347,36 @@ Consulta el [contrato de la API](docs/architecture/api-contract.md) para ver los
 Validación específica realizada: 6 pruebas de conexiones, 20 HTTP y 7 HTTP con PostgreSQL real. Se comprobó manualmente el arranque, `/health` con 200, la creación sin token con 401 y el retorno al prompt tras Ctrl+C.
 
 No se añaden migraciones, formulario web, autorización con `event_staff`, auditoría completa ni recursos de Azure. Listar, consultar, editar, activar y cerrar eventos queda fuera de esta entrega.
+
+### Creación de eventos desde la web — OE-02-001C
+
+Seguimiento: Issue #23, rama `feat/23-create-event-web`. Requisitos: RF-EVT-001, RF-AUT-001 y RF-AUT-002. Implementación local; PR y merge pendientes.
+
+1. Inicia sesión y pulsa «Comprobar acceso».
+2. La web consulta `/api/v1/auth/me`. Solo habilita el formulario si la identidad incluye `organizer`.
+3. Completa nombre, slug, inicio, fin, zona horaria y ubicación.
+4. Pulsa «Crear evento». La web obtiene un access token mediante MSAL y envía los seis campos a `POST /api/v1/events`.
+5. Una respuesta 201 válida muestra el identificador, estado `draft` y datos devueltos por la API.
+
+Las horas del formulario corresponden a la zona seleccionada, no a la zona del navegador. `@js-temporal/polyfill` 0.5.1 convierte a UTC y rechaza fechas inválidas y horas inexistentes o ambiguas por cambios de horario. El fin debe ser posterior al inicio.
+
+La comprobación de permisos en la web mejora el recorrido del usuario; la API autoriza cada creación. `admin` y `checkin_operator` no conceden por sí solos el permiso. Al cambiar de cuenta se reinicia el estado de permisos y del formulario.
+
+Los borradores se guardan en `sessionStorage`, separados por cuenta, con los seis campos y una marca de resultado incierto. No contienen tokens. Se recuperan al recargar la misma pestaña, y se eliminan tras una creación confirmada o antes del cierre de sesión. No constituyen un respaldo permanente. Si falla el guardado, se bloquean el envío y la comprobación de acceso que podría redirigir. Si falla la eliminación previa al cierre de sesión, se informa y no se inicia la redirección.
+
+La creación usa adquisición silenciosa del token. Si Microsoft requiere interacción, no se envía el POST y se pide comprobar nuevamente el acceso; ese flujo puede redirigir a Microsoft conservando el borrador guardado.
+
+Un conflicto de slug conserva los campos y señala el identificador utilizado. Los errores muestran mensajes controlados. Ante un fallo de red, 500 o respuesta inesperada, la web advierte que el evento podría haberse guardado y no reintenta automáticamente. El bloqueo de envíos repetidos en la interfaz no equivale a idempotencia de la API.
+
+El formulario y su conversión horaria se cargan por separado al confirmar `organizer`. El build local produjo 498,06 kB de JavaScript principal y 160,74 kB para el formulario, sin el aviso de fragmentos mayores de 500 kB. Son medidas del build local, no un presupuesto de rendimiento garantizado.
+
+Validación global local aprobada: 160 pruebas de API, 194 de web y 22 de integración PostgreSQL (376 en total), además de typecheck, lint y build. Se confirmó en navegador que el formulario aparece con sus estilos después del cambio de carga diferida.
+
+Pruebas específicas aprobadas: 39 de validación, 39 del cliente HTTP, 18 de borradores, 23 del formulario y 16 de sesión: 135 pruebas nuevas. Las pruebas de interfaz utilizan React Testing Library y jsdom, con MSAL y llamadas de API simulados. No sustituyen la comprobación en navegador.
+
+Comprobaciones manuales realizadas: creación con una cuenta `organizer` y token real, conversión de 09:00–17:00 en Lima a 14:00–22:00 UTC, rechazo de slug repetido conservando los campos, recuperación tras recarga y limpieza tras cerrar e iniciar sesión. No se ha comprobado manualmente una renovación interactiva forzada de Microsoft ni un fallo de red durante la creación.
+
+Esta entrega no modifica la API, el esquema o las migraciones. No añade consulta, edición, activación o cierre de eventos, asignaciones `event_staff`, auditoría completa ni recursos Azure. Las rutas y la interfaz demo permanecen abiertas. OE-01-003B recibe un avance parcial limitado a la creación de eventos.
 
 ## Comandos
 

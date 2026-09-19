@@ -112,3 +112,59 @@
 - Ejecutar las validaciones globales y la suite completa de integración.
 - Revisar el diff final y los archivos del commit.
 - Crear commit y PR, comprobar CI y completar el merge.
+
+## Sesión 004 — 18 de septiembre de 2026
+
+**Objetivo:** implementar OE-02-001C, creación de eventos desde la web.
+**Issue:** #23.
+**Rama:** `feat/23-create-event-web`.
+
+### Resultado
+
+- Formulario con nombre, slug, inicio, fin, zona horaria y ubicación.
+- Validación de campos y conversión a UTC con Temporal; rechazo de horas inexistentes o ambiguas.
+- Acceso condicionado a la sesión y a `organizer` comprobado mediante la API.
+- Cliente de POST con token de MSAL, confirmación y mensajes controlados.
+- Bloqueo de envíos simultáneos y ausencia de reintentos automáticos ante resultados inciertos.
+- Borradores en sessionStorage por cuenta, recuperados al recargar y eliminados tras confirmación o antes de salir.
+- Etiquetas, foco en el primer campo inválido, estados accesibles y estilos adaptables.
+- Carga diferida del formulario después de comprobar organizer.
+- Nuevas dependencias: @js-temporal/polyfill 0.5.1; para pruebas, @testing-library/react 16.3.0, @testing-library/dom 10.4.1 y jsdom 26.1.0.
+
+### Validación realizada
+
+- 39 pruebas de validación y conversión horaria.
+- 39 pruebas del cliente de creación.
+- 18 pruebas de almacenamiento de borradores.
+- 23 pruebas del formulario y 16 de sesión: 135 pruebas nuevas, aprobadas en las ejecuciones específicas.
+- Typecheck y lint de la web aprobados.
+- Build de web aprobado sin aviso de fragmentos mayores de 500 kB: principal de 498,06 kB y formulario de 160,74 kB.
+- Comprobación manual con cuenta organizer y token real: creación confirmada en draft, horas de Lima convertidas correctamente a UTC.
+- Slug duplicado rechazado, conservando los campos.
+- Borrador recuperado tras recargar y comprobar acceso.
+- Formulario vacío, salvo America/Lima predeterminado, después de cerrar e iniciar sesión.
+- Tras introducir la carga diferida, las 39 pruebas de formulario/sesión, typecheck, lint y build volvieron a pasar.
+- Validación global final aprobada: 160 pruebas de API, 194 de web y 22 de integración con PostgreSQL; 376 pruebas en total.
+- Typecheck, lint y build globales aprobados.
+- Se confirmó en navegador que el formulario aparece con sus estilos después del cambio de carga diferida.
+
+Las pruebas de interfaz simulan MSAL y llamadas de API. Las comprobaciones manuales de creación y borradores se realizaron antes del último cambio de carga diferida. No se ha forzado manualmente una renovación interactiva ni un fallo de red durante el envío.
+
+### Límites conservados
+
+- API, esquema y migraciones sin cambios.
+- Sin consulta, edición, activación o cierre de eventos.
+- Sin asignaciones event_staff, auditoría completa ni recursos Azure.
+- Interfaz y rutas demo abiertas; health público.
+- Avance parcial de OE-01-003B, limitado a la creación de eventos.
+
+### Seguimiento de entregas anteriores
+
+- OE-01-002A: Issue #19 cerrado mediante PR #20; merge afd5946.
+- OE-02-001B: Issue #21 cerrado mediante PR #22; merge fd07d89 y CI aprobado. Las validaciones globales que figuraban como pendientes en la sesión anterior fueron realizadas antes del cierre.
+
+### Pendiente al registrar esta sesión
+
+- Revisar el diff completo, la documentación y los archivos que se incluirán en el commit.
+- Ejecutar git diff --check sobre la documentación final.
+- Crear commit y PR, comprobar CI y completar el merge.

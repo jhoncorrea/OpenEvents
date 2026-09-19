@@ -98,13 +98,15 @@ OE-02-001 conserva su identificador como historia principal. Se implementará me
 | Parte | Alcance | Seguimiento |
 |---|---|---|
 | OE-02-001A | Validación y operación interna de creación de eventos con persistencia PostgreSQL y pruebas. | Issue #15. |
-| OE-02-001B | Exponer `POST /api/v1/events` con autenticación, autorización de Organizador y pruebas HTTP. | Issue #21. Implementado en la rama `feat/21-create-event-api`, con validaciones locales aprobadas; pendiente de PR y merge. Depende de OE-02-001A y de la autenticación y controles de roles de OE-01-002A (Issue #19, PR #20). |
+| OE-02-001B | Exponer `POST /api/v1/events` con autenticación, autorización de Organizador y pruebas HTTP. | Issue #21 cerrado. PR #22 integrado en `main`, merge `fd07d89`, CI aprobado. Depende de OE-02-001A y de la autenticación y controles de roles de OE-01-002A (Issue #19, PR #20). |
+
+| OE-02-001C | Formulario web de creación, acceso para organizer, conversión horaria a UTC, errores y borradores por cuenta. | Issue #23. Implementado localmente en `feat/23-create-event-web`; pruebas específicas y comprobaciones manuales aprobadas. Validaciones globales aprobadas: 376 pruebas, typecheck, lint y build. Pendientes revisión final, PR y merge. Depende de A, B y de la sesión web de OE-01-003A. |
 
 La estimación de la fila principal se conserva como referencia original; este desglose no añade puntos ni estimaciones independientes.
 
 OE-02-002 mantiene su referencia a OE-02-001. No debe interpretarse la finalización de OE-02-001A como cumplimiento de toda esa dependencia.
 
-El formulario web queda fuera de OE-02-001A y OE-02-001B; su planificación se definirá por separado. La entrega B no incorpora autorización por evento mediante event_staff ni completa por sí sola el recorrido web del Organizador.
+El formulario web se aborda en OE-02-001C. La entrega B no completa por sí sola el recorrido web del Organizador. Ninguna de estas entregas incorpora autorización por evento mediante `event_staff`, ni consulta o edición de eventos. El cierre de la historia principal deberá contrastarse con sus criterios y dependencias al integrar C.
 
 ## Desglose de OE-01-003 — Sesión y rutas protegidas en la web
 
@@ -113,7 +115,7 @@ OE-01-003 conserva su identificador como historia principal. Se implementará me
 | Parte | Alcance | Seguimiento |
 |---|---|---|
 | OE-01-003A | Integrar inicio y cierre de sesión con Microsoft Entra External ID, configuración validada, visualización de la cuenta y manejo de errores. | Issue #17. |
-| OE-01-003B | Proteger las rutas web e integrar el acceso a las operaciones protegidas de la API. | Pendiente de crear Issue; depende de OE-01-003A y de las capacidades de protección de API de OE-01-002. |
+| OE-01-003B | Proteger las rutas web e integrar el acceso a las operaciones protegidas de la API. | Avance parcial en OE-02-001C (Issue #23), limitado al formulario de creación. Sigue pendiente la protección de las demás funciones web y la planificación de su Issue. Depende de OE-01-003A y de las capacidades de protección de API de OE-01-002. |
 
 La estimación de la historia principal se conserva como referencia original; este desglose no añade puntos ni estimaciones independientes.
 

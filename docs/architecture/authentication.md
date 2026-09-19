@@ -1,6 +1,6 @@
 # Autenticación de API — OE-01-002A
 
-Implementación del Issue #19: validación de access tokens y roles de aplicación con Microsoft Entra External ID. Actualizado en OE-02-001B (Issue #21) para documentar su uso en la creación de eventos.
+Implementación del Issue #19: validación de access tokens y roles de aplicación con Microsoft Entra External ID. Actualizado en OE-02-001B (Issue #21) y OE-02-001C (Issue #23) para documentar la creación de eventos desde la API y la web.
 
 ## Estado y alcance
 
@@ -13,6 +13,7 @@ Implementado:
 - Ruta `POST /api/v1/events` protegida con el rol `organizer` (OE-02-001B).
 - Solicitud de un access token desde la web mediante MSAL.
 - Consulta de identidad y roles mediante el botón «Comprobar acceso».
+- Formulario web de creación habilitado únicamente tras comprobar `organizer`, con carga diferida y borradores por cuenta (OE-02-001C).
 - Pruebas automatizadas de configuración, verificación de tokens, controles HTTP y cliente web.
 - Comprobación manual satisfactoria con un token real y el rol `organizer`.
 
@@ -21,7 +22,7 @@ Límites actuales:
 - `GET /health` continúa público.
 - `GET /api/events/current` y `POST /api/check-ins` son rutas demo sin autenticación.
 - La interfaz demo sigue visible sin iniciar sesión.
-- El formulario web de creación y las demás operaciones HTTP de eventos siguen pendientes.
+- Las demás operaciones HTTP de eventos y la protección de las demás funciones web siguen pendientes.
 - No está implementada la autorización por evento mediante `event_staff`.
 - Los roles de aplicación no conceden automáticamente acceso a un evento concreto.
 
@@ -147,7 +148,7 @@ El scope anterior corresponde a la API de Development. Otros entornos deben util
 
 El validador actual del scope admite el formato `api://<UUID>/access_as_user`.
 
-La consulta de identidad requiere `VITE_API_URL`; esta función no aplica un valor predeterminado. Admite HTTPS o HTTP en localhost, sin credenciales, query ni fragmento.
+Los clientes de identidad y creación requieren `VITE_API_URL`; no aplican un valor predeterminado. Admite HTTPS o HTTP en localhost, sin credenciales, query ni fragmento.
 
 El inicio de sesión solicita `openid` y `profile`. El botón «Comprobar acceso» solicita por separado el scope de la API:
 
@@ -163,6 +164,22 @@ MSAL administra su caché en `sessionStorage`. La aplicación no imprime el toke
 
 Las variables `VITE_*` son públicas. La SPA no utiliza secretos de cliente.
 
+## Creación desde la web — OE-02-001C
+
+`SessionControls` utiliza los roles devueltos por la API para habilitar el formulario con `organizer`. No se infieren permisos a partir del nombre de la cuenta o del rol `admin`. Mientras se comprueban permisos, o si falla la comprobación, no se permite crear. La API conserva la autorización definitiva de cada POST.
+
+Al cambiar de cuenta se reinician los permisos y el estado del formulario; las respuestas de comprobación de acceso de una cuenta anterior no habilitan el formulario de la nueva. Después de abrirse, el formulario permanece montado, oculto y deshabilitado durante nuevas comprobaciones para conservar sus campos.
+
+El cliente de creación obtiene un token con `acquireTokenSilent`. Si se requiere interacción, no envía la creación ni inicia una redirección automáticamente: invalida el permiso comprobado y solicita volver a «Comprobar acceso». Esta comprobación puede usar `acquireTokenRedirect`.
+
+Los borradores usan un espacio propio de `sessionStorage`, separado por identificadores de cuenta. Contienen únicamente los seis campos del formulario, la versión y una marca de resultado incierto. No almacenan tokens adicionales. La marca se guarda antes de intentar la creación para conservar la advertencia si se interrumpe la página. Una confirmación válida elimina el borrador; el cierre de sesión intenta eliminarlo antes de redirigir.
+
+Si falla el guardado se bloquean la creación y la comprobación que podría redirigir. Si falla la eliminación del borrador antes de salir, el cierre de sesión no se inicia y se muestra un mensaje. Los borradores son almacenamiento temporal del navegador y no una garantía de recuperación.
+
+Los errores 401/403 o de adquisición del token invalidan el permiso comprobado en la interfaz. Un 409 conserva los campos. Los fallos de red, 500 y respuestas inesperadas se consideran resultados inciertos; no hay reintentos automáticos ni garantía de idempotencia. El usuario debe verificar el resultado antes de reenviar.
+
+La carga diferida del formulario reduce el JavaScript inicial y muestra un estado de carga o un mensaje para recargar si falla su descarga. Este comportamiento no amplía el alcance de las rutas demo ni implementa `event_staff`.
+
 ## Validación
 
 Pruebas relevantes:
@@ -173,6 +190,7 @@ Pruebas relevantes:
 - API: `app.test.ts`.
 - Web: `auth-config.test.ts`.
 - Web: `api-auth.test.ts`.
+- Web: `event-form.test.ts`, `api-events.test.ts`, `event-draft.test.ts`, `CreateEventForm.test.tsx` y `SessionControls.test.tsx` (135 pruebas nuevas de OE-02-001C).
 
 Estas pruebas no necesitan conectarse a Entra. El verificador se prueba con claves y tokens locales; las pruebas HTTP y del cliente web utilizan dependencias simuladas.
 
@@ -184,3 +202,5 @@ Comprobación manual realizada:
 4. Verificar los mensajes «Acceso a la API verificado» y «Roles: organizer».
 
 Esta comprobación confirma el acceso a `/api/v1/auth/me` con un token real. No demuestra autorización por evento ni protección de las rutas demo.
+
+En OE-02-001C se comprobó además la creación desde el formulario con token real y rol `organizer`, el conflicto de slug conservando los campos, la recuperación del borrador tras recarga y su limpieza al cerrar sesión. No se realizó una prueba manual de renovación interactiva forzada ni de fallo de red durante el POST.
