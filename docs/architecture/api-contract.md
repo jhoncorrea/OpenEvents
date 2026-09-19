@@ -2,13 +2,13 @@
 
 Este documento describe la API objetivo del MVP. No todas las rutas ni convenciones aquí propuestas están implementadas.
 
-## Estado implementado — OE-01-002A/B, OE-02-001B/C y OE-02-002A/B
+## Estado implementado — OE-01-002A/B, OE-02-001B/C y OE-02-002A/B/C
 
 - `GET /health` es público.
 - `GET /api/v1/auth/me` requiere un access token válido para la API, la aplicación cliente permitida y el scope `access_as_user`. Devuelve la identidad y los roles reconocidos; no exige un rol específico.
 - `GET /api/events/current` y `POST /api/check-ins` son rutas demo que siguen abiertas.
 - `POST /api/v1/events` exige autenticación válida y el rol `organizer`, y crea un evento persistido en estado `draft`.
-- Se asigna al creador en `event_staff`. `GET /api/v1/events` y `GET /api/v1/events/{eventId}` exigen organizer global y asignación organizer por evento; la edición sigue pendiente.
+- Se asigna al creador en `event_staff`. `GET /api/v1/events` y `GET /api/v1/events/{eventId}` exigen organizer global y asignación organizer por evento. PATCH permite editar borradores con los mismos permisos y control de versión.
 
 La autenticación implementada responde con errores planos `{ code, message }` y estados 401, 403 o 500. El contenedor `error`, el campo `correlationId` y la convención `X-Correlation-Id` descritos más abajo siguen siendo parte del contrato objetivo.
 
@@ -69,7 +69,8 @@ Ejemplo ilustrativo; PostgreSQL genera `id` y `createdAt`:
   "timezone": "America/Lima",
   "location": "Centro de Convenciones de Lima",
   "status": "draft",
-  "createdAt": "2026-09-18T18:00:00.000Z"
+  "createdAt": "2026-09-18T18:00:00.000Z",
+  "version": 1
 }
 ```
 
@@ -104,7 +105,7 @@ Se utiliza la tabla `event` y las migraciones existentes. La operación interna 
 
 `DATABASE_URL` es obligatoria en el servidor. Antes de escuchar se comprueba PostgreSQL con `SELECT 1`; las migraciones se aplican por separado. El pool se libera al cerrar Fastify.
 
-Desde OE-01-002B, la ruta asigna al creador a `event_staff` dentro de la transacción de creación; la auditoría completa sigue pendiente. El formulario web se incorpora en OE-02-001C (Issue #23); la consulta se incorpora en OE-02-002A/B y la edición sigue pendiente.
+Desde OE-01-002B, la ruta asigna al creador a `event_staff` dentro de la transacción de creación; la auditoría completa sigue pendiente. El formulario web se incorpora en OE-02-001C (Issue #23); la consulta se incorpora en OE-02-002A/B y la edición API de borradores en OE-02-002C.
 
 Las pruebas HTTP aisladas simulan persistencia. Las de integración utilizan PostgreSQL real y un verificador de tokens simulado, con una transacción que se revierte por prueba.
 
@@ -139,7 +140,7 @@ Seguimiento: Issue #27. Las dos rutas GET exigen las validaciones existentes de 
 | `limit` | Opcional. Entero decimal de 1 a 100, predeterminado 20. No admite ceros iniciales, espacios, decimales, notación exponencial o valores repetidos. |
 | `cursor` | Opcional. Cadena base64url canónica, sin relleno, máximo 100 caracteres. Se utiliza el `nextCursor` devuelto por la página anterior. |
 
-No se admiten otros parámetros. Una respuesta 200 contiene `items` (eventos con los mismos nueve campos de la respuesta de creación) y `nextCursor` (cadena o null). Una lista vacía devuelve `{ "items": [], "nextCursor": null }`.
+No se admiten otros parámetros. Una respuesta 200 contiene `items` (eventos con los mismos campos de la respuesta de creación, incluida version desde OE-02-002C) y `nextCursor` (cadena o null). Una lista vacía devuelve `{ "items": [], "nextCursor": null }`.
 
 El orden es `event.id ASC`, comparado como UUID en PostgreSQL. El cursor v1 codifica el último UUID; la siguiente página busca IDs mayores. No es un orden cronológico, una firma ni una credencial. Manipular o reutilizar un cursor nunca sustituye las comprobaciones de autorización. Se lee un elemento adicional para decidir si existe una página siguiente.
 
@@ -166,6 +167,43 @@ La identidad local usa tenant y objeto del token verificado. La lectura no aprov
 Los errores usan `{ code, message }`. El control de acceso añade `Cache-Control: no-store`; las respuestas 401 añaden `WWW-Authenticate: Bearer`. La autenticación precede a la validación de parámetros. Los fallos de consulta se registran únicamente con `EVENT_QUERY_FAILED` y mensaje genérico, sin SQL ni error original.
 
 Se usa una transacción y `FOR SHARE` sobre el usuario existente para mantener estable su estado durante la lectura. La asignación se comprueba al ejecutar cada SELECT; no se garantiza que permanezca después de completar la solicitud. No se añaden migraciones, edición ni interfaz web. El servidor conecta ambas operaciones a PostgreSQL; `buildApp` permite omitir conjuntamente las operaciones de consulta en pruebas aisladas de otras funciones.
+
+## Edición de eventos implementada — OE-02-002C
+
+Issue #31. `PATCH /api/v1/events/{eventId}` requiere Bearer y JSON. No admite query parameters. La autenticación y el rol global se comprueban antes de procesar la entrada; después se valida la entrada y se resuelve la autorización local dentro de la transacción.
+
+```json
+{
+  "expectedVersion": 1,
+  "name": "Evento corregido",
+  "location": "Nueva ubicación"
+}
+```
+
+`expectedVersion` es obligatorio: entero JSON entre 1 y 2147483646, sin conversión desde texto. Debe coincidir con la versión persistida. Se exige al menos uno de `name`, `slug`, `startsAt`, `endsAt`, `timezone` y `location`. Los campos omitidos se conservan; null no elimina campos. Se rechazan campos desconocidos, incluidos `version`, `status`, `id`, `createdAt` e identidades. Las reglas de los campos son las de creación y se valida el intervalo completo tras combinar con los valores persistidos.
+
+Cambiar solo `timezone` no reinterpreta `startsAt` ni `endsAt`: son instantes UTC. Una edición aceptada, incluso sin cambios efectivos de valores, incrementa la versión en uno. Respuesta 200: evento completo con fechas UTC y `version` actualizada. POST y ambos GET también incluyen `version`, que empieza en 1. No se exige ETag ni If-Match en este contrato; la precondición viaja en el cuerpo. La web de consulta existente descarta campos adicionales y requerirá adaptación para editar.
+
+| HTTP | Código | Situación |
+|---|---|---|
+| 400 | `INVALID_EVENT_INPUT` | ID, query o cuerpo inválido, versión ausente o intervalo resultante inválido. |
+| 401 | `UNAUTHORIZED` | Token o identidad no válido. |
+| 403 | `FORBIDDEN` | Cliente, scope o rol global no permitido; usuario local deshabilitado. |
+| 404 | `EVENT_NOT_FOUND` | Evento inexistente, identidad local desconocida o ausencia de asignación organizer; mismo cuerpo. |
+| 409 | `EVENT_NOT_EDITABLE` | Evento fuera de draft. |
+| 409 | `EVENT_VERSION_CONFLICT` | Versión persistida distinta de expectedVersion. |
+| 409 | `EVENT_SLUG_CONFLICT` | Slug ocupado. |
+| 500 | `INTERNAL_SERVER_ERROR` | Fallo inesperado, con mensaje genérico. |
+
+Tras comprobar permisos, se verifica primero el estado y después la versión. El campo expectedVersion no concede permisos. Un cuerpo inválido puede recibir 400 antes de consultar si el evento existe. JSON mal formado y otros errores de procesamiento HTTP pueden utilizar el formato de Fastify.
+
+Cada edición ejecuta una transacción: usuario FOR SHARE, asignación FOR SHARE, evento FOR UPDATE; luego combina, valida y actualiza con condición de ID, versión y estado. Un conflicto revierte la escritura completa. El 23505 se traduce a conflicto de slug únicamente si corresponde a `event_slug_unique`.
+
+`Cache-Control: no-store` se conserva y los 401 incluyen `WWW-Authenticate: Bearer`. El logger de la ruta registra solo `EVENT_EDIT_FAILED` y un mensaje genérico. CORS permite PATCH desde el origen configurado, localhost:5173; CORS no sustituye autenticación ni autorización.
+
+La protección de versión depende de que todas las futuras rutas de modificación la incrementen y respeten el protocolo. SQL directo no queda automáticamente cubierto. Al alcanzar el máximo de integer se requiere una evolución de esquema; se rechaza expectedVersion por encima del máximo indicado para evitar desbordamiento al sumar uno.
+
+La versión evita sobrescritura silenciosa; no es una clave de idempotencia. Tras un fallo de red, consultar el evento antes de reenviar o elegir una versión nueva. No se fusionan cambios automáticamente. No se garantiza revocación retroactiva: si la edición obtiene primero los bloqueos, una deshabilitación o revocación concurrente espera a su finalización.
 
 ## Contrato objetivo del MVP
 

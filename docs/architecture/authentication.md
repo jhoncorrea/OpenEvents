@@ -257,3 +257,13 @@ El cliente usa la cuenta seleccionada y `acquireTokenSilent`. Si se requiere int
 El componente se desmonta cuando pierde acceso o la sesión está ocupada. Cancela las solicitudes pendientes y descarta respuestas tardías, también al cambiar de cuenta. Volver desde un detalle pendiente cancela esa consulta. Los eventos consultados permanecen solo en memoria; los borradores del formulario mantienen su mecanismo separado por cuenta.
 
 Las pruebas del cliente (43), de «Mis eventos» (18) y de sesión (24, con 8 nuevas) cubren errores, aislamiento, cancelación y recarga tras creación. Las pruebas web simulan MSAL y la API. La comprobación manual confirmó listado y detalle con la cuenta organizer real; no se declara una prueba manual entre dos cuentas.
+
+## Edición autorizada — OE-02-002C
+
+Issue #31 añade PATCH con organizer global, identidad local activa y asignación organizer. No se aprovisionan usuarios al editar y no se admiten identidades del cuerpo. Usuario desconocido y evento ajeno/inexistente producen el mismo 404; usuario deshabilitado produce 403. Admin no hereda permisos de organizer.
+
+La transacción bloquea primero el usuario con FOR SHARE, después su asignación con FOR SHARE y finalmente el evento con FOR UPDATE. Las actualizaciones o eliminaciones incompatibles de esas filas esperan: una edición ya autorizada puede completar antes de una revocación concurrente. Una revocación confirmada antes de adquirir el bloqueo impide editar. Las futuras operaciones de administración deben coordinar el orden de bloqueos y gestionar posibles deadlocks.
+
+Solo se editan borradores y expectedVersion debe coincidir. Los bloqueos son breves, limitados a la transacción; no se mantienen durante el tiempo que una persona completa un formulario. La versión detecta cambios entre lectura y escritura y no es una credencial.
+
+Evidencia: 18 pruebas de persistencia, 3 de concurrencia, 27 HTTP aisladas y 16 HTTP con PostgreSQL. Las HTTP de integración simulan Entra; la prueba manual usa sesión real y verifica creación, edición, versión obsoleta, intervalo inválido y ausencia de token. No se declara una comprobación manual entre cuentas ni una prueba automatizada específica de revocación simultánea. La auditoría completa y el rate limiting quedan pendientes.

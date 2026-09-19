@@ -275,3 +275,40 @@ Issue #27 integrado mediante PR #28, merge `bf74848`. El mantenedor confirmó CI
 - Sin edición, migraciones, endpoints nuevos ni recursos Azure. La demo sigue pública.
 - Listado por UUID, sin orden cronológico ni instantánea entre páginas. Carga y actualización explícitas.
 - Pendientes revisión de documentación y diff, commit, PR, CI y merge.
+
+## Sesión 008 — 19 de septiembre de 2026
+
+**Objetivo:** OE-02-002C, editar eventos en borrador con autorización por evento.
+**Issue:** #31. **Rama:** `feat/31-event-edit-api`.
+
+### Cierre anterior
+
+Issue #29 integrado mediante PR #30, merge `d91995d`. El mantenedor confirmó CI verde, sincronizó main y eliminó la rama anterior. Los informes usan el formato `OpenEvents_<código-OE>_<descripción>_PR<número>`.
+
+### Resultado y validación
+
+- PATCH parcial de seis campos, sin cambios de estado ni identidad; validación del evento combinado.
+- Migración 0002 para version positiva y obligatoria, inicializada a 1. POST y GET devuelven version.
+- Usuario y asignación protegidos con SHARE; evento con UPDATE. Versión esperada obligatoria y actualización atómica.
+- Errores controlados 400/401/403/404/409/500; CORS permite PATCH desde la web configurada.
+- 44 pruebas de entrada, 18 de operación, 3 de concurrencia, 27 HTTP aisladas, 16 HTTP PostgreSQL y 4 nuevas del esquema: 112 pruebas nuevas.
+- Validación global: 321 API + 263 web + 109 integración = 693 pruebas aprobadas. Typecheck, lint, build y git diff --check aprobados antes de documentación.
+- Manual con sesión real: 401 sin token, creación 201, edición 200, versión antigua 409, intervalo inválido 400 y GET final 200. El evento quedó draft, versión 2, sin modificación por los rechazos.
+- Evento manual: `19507afb-5cb9-420e-bf70-781fe9a898b0`; slug `prueba-edicion-88515823-db88-437b-a0b6-2505fe02cbe9`. Permanece como dato local de prueba.
+- Comprobador temporal issue31-smoke.ts retirado. No se modificaron eventos anteriores en la prueba manual.
+
+### Threat modeling antes del cierre
+
+| Categoría | Escenario | Mitigación comprobada | Pendiente |
+|---|---|---|---|
+| Seguridad | Cambiar ID o inyectar status/identidad para editar un evento ajeno. | Lista estricta de campos, identidad del token, usuario activo y asignación; mismo 404 ajeno/inexistente. Pruebas de rol, tenant y asignación. | Prueba manual con dos cuentas; prueba concurrente de revocación; auditoría de cambios. |
+| Concurrencia/carga | Dos organizadores guardan la misma versión o compiten por slug. | Versión esperada, bloqueos transaccionales y unicidad. Tres pruebas con conexiones independientes confirman un ganador y conservación del perdedor. | Pruebas de carga, métricas de espera/bloqueos, rate limiting y coordinación de futuros escritores. |
+| Experiencia | Se pierde la respuesta tras guardar y el cliente intenta repetir. | GET expone versión; repetir con versión antigua produce conflicto en vez de sobrescribir. Pruebas de edición obsoleta y lectura posterior. | UI de edición, conservación de cambios locales y comparación/recuperación explícita; no hay idempotencia ni reintento automático. |
+
+Los bloqueos evitan revocar a mitad de una escritura que ya los obtuvo, pero no cancelan retroactivamente esa escritura. Version requiere disciplina de todos los escritores; SQL directo no está cubierto automáticamente. El máximo integer requiere evolución si se alcanza.
+
+### ADR y pendientes
+
+ADR-005: edición parcial solo de borradores. ADR-006: versión persistida y control de concurrencia. ADR-007: autorización estable durante la escritura. Se registran contexto, decisión y consecuencias.
+
+Pendientes revisión documental y diff, commit, PR, CI y merge. Sin formulario web, activación/cierre, auditoría completa ni Azure. Tras el merge se prepararán tres preguntas senior con respuestas, párrafo ejecutivo de cinco líneas, ejemplos documentados, PDF e imagen con código OE primero.

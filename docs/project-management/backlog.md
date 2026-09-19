@@ -131,14 +131,15 @@ La autorización debe aplicarse en la API. Ocultar elementos o restringir navega
 
 OE-01-002B prepara una dependencia de OE-02-002. La consulta y edición deberán aplicar expresamente los permisos por evento. La asignación automática del creador no completa la protección de las demás rutas ni la administración de personal.
 
-OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperable: existe persistencia y confirmación de creación; la recuperación mediante API se integró en OE-02-002A y la pantalla de consulta se implementó en OE-02-002B, pendiente de integración. La edición continúa pendiente.
+OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperable: existe persistencia y confirmación de creación; la recuperación mediante API se integró en OE-02-002A y la pantalla de consulta se integró en OE-02-002B. La edición API de borradores se implementa en OE-02-002C; la edición web continúa pendiente.
 
 ## Desglose de OE-02-002 — Consulta y edición
 
 | Parte | Alcance | Seguimiento |
 |---|---|---|
 | OE-02-002A | Listado paginado y detalle API para organizadores con autorización por evento. | Issue #27 cerrado; PR #28 integrado en `main`, merge `bf74848`. CI aprobado según comprobación del mantenedor. Validación local previa: 512 pruebas, typecheck, lint y build. |
-| OE-02-002B | Listado y detalle web, paginación, estados y aislamiento por cuenta. | Issue #29, rama `feat/29-event-query-web`. Implementación y validación local aprobadas: 581 pruebas globales; 108 relacionadas repetidas tras ajuste de carga. Typecheck, lint, build final sin aviso de tamaño y revisión de espacios aprobados. Comprobación manual de listado, detalle y vuelta. Pendientes revisión final, PR, CI y merge. |
-| Posteriores | Edición autorizada de eventos. | Pendiente de planificación; sin Issue asignado en este registro. |
+| OE-02-002B | Listado y detalle web, paginación, estados y aislamiento por cuenta. | Issue #29 cerrado; PR #30 integrado en main, merge `d91995d`. CI aprobado según comprobación del mantenedor. Validación local previa: 581 pruebas, typecheck, lint y build. |
+| OE-02-002C | PATCH de borradores con permisos por evento y control de versión. | Issue #31, rama `feat/31-event-edit-api`. 693 pruebas globales, typecheck, lint, build y revisión de espacios aprobados antes de documentación. Comprobación manual con sesión real aprobada. Pendientes revisión final, PR, CI y merge. |
+| OE-02-002D | Edición desde la web y resolución de conflictos de versión. | Propuesta de siguiente entrega; sin Issue asignado. |
 
-A utiliza las asignaciones de OE-01-002B y añade recuperación mediante API. B incorpora la pantalla web; ninguna de estas entregas completa la edición. No se añaden estimaciones independientes.
+A utiliza las asignaciones de OE-01-002B y añade recuperación mediante API. B incorpora la pantalla de consulta. C añade edición API solo de borradores y D queda pendiente para la interfaz de edición. No se añaden estimaciones independientes.

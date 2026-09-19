@@ -56,7 +56,7 @@ export function registerEventRoutes(
           timezone: event.timezone,
           location: event.location,
           status: event.status,
-          createdAt: event.createdAt.toISOString(),
+          createdAt: event.createdAt.toISOString(), version: event.version,
         });
       } catch (error) {
         if (error instanceof AuthenticationError) {

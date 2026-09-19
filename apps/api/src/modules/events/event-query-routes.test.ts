@@ -14,7 +14,7 @@ const actor: AuthenticatedUser = {
 const event: QueriedEvent = {
   id: "a3333333-3333-4333-8333-333333333333", name: "Test event", slug: "test-event",
   startsAt: new Date("2027-08-27T14:00:00Z"), endsAt: new Date("2027-08-27T22:00:00Z"),
-  timezone: "America/Lima", location: "Lima", status: "draft",
+  timezone: "America/Lima", location: "Lima", status: "draft", version: 1,
   createdAt: new Date("2026-09-19T12:00:00Z"),
 };
 const headers = { authorization: "Bearer test-token" };

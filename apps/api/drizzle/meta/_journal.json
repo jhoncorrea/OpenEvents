@@ -15,6 +15,13 @@
       "when": 1789834222095,
       "tag": "0001_absent_tigra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789850561830,
+      "tag": "0002_brief_jocasta",
+      "breakpoints": true
     }
   ]
 }
