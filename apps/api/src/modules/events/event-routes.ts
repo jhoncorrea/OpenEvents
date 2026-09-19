@@ -9,8 +9,15 @@ import {
   type createEvent,
 } from "./create-event.js";
 
+import {
+  AuthenticationError,
+  AuthorizationError,
+  type AuthenticatedUser,
+} from "../../auth/verify-access-token.js";
+
 export type CreateEventOperation = (
   input: unknown,
+  authenticatedUser: AuthenticatedUser,
 ) => ReturnType<typeof createEvent>;
 
 interface EventRouteOptions {
@@ -32,8 +39,13 @@ export function registerEventRoutes(
     },
     async (request, reply) => {
       try {
-        // La operación existente valida la entrada antes de insertar.
-        const event = await executeCreateEvent(request.body);
+        const actor = request.authenticatedUser;
+        if (!actor) {
+          throw new AuthenticationError();
+        }
+
+        // La identidad procede del control de autenticación, nunca del cuerpo.
+        const event = await executeCreateEvent(request.body, actor);
 
         return reply.code(201).send({
           id: event.id,
@@ -47,6 +59,23 @@ export function registerEventRoutes(
           createdAt: event.createdAt.toISOString(),
         });
       } catch (error) {
+        if (error instanceof AuthenticationError) {
+          return reply
+            .header("WWW-Authenticate", "Bearer")
+            .code(401)
+            .send({
+              code: "UNAUTHORIZED",
+              message: "Se requiere un token de acceso válido.",
+            });
+        }
+
+        if (error instanceof AuthorizationError) {
+          return reply.code(403).send({
+            code: "FORBIDDEN",
+            message: "No tienes los permisos necesarios para esta operación.",
+          });
+        }
+
         if (error instanceof ZodError) {
           return reply.code(400).send({
             code: "INVALID_EVENT_INPUT",

@@ -99,8 +99,7 @@ OE-02-001 conserva su identificador como historia principal. Se implementará me
 |---|---|---|
 | OE-02-001A | Validación y operación interna de creación de eventos con persistencia PostgreSQL y pruebas. | Issue #15. |
 | OE-02-001B | Exponer `POST /api/v1/events` con autenticación, autorización de Organizador y pruebas HTTP. | Issue #21 cerrado. PR #22 integrado en `main`, merge `fd07d89`, CI aprobado. Depende de OE-02-001A y de la autenticación y controles de roles de OE-01-002A (Issue #19, PR #20). |
-
-| OE-02-001C | Formulario web de creación, acceso para organizer, conversión horaria a UTC, errores y borradores por cuenta. | Issue #23. Implementado localmente en `feat/23-create-event-web`; pruebas específicas y comprobaciones manuales aprobadas. Validaciones globales aprobadas: 376 pruebas, typecheck, lint y build. Pendientes revisión final, PR y merge. Depende de A, B y de la sesión web de OE-01-003A. |
+| OE-02-001C | Formulario web de creación, acceso para organizer, conversión horaria a UTC, errores y borradores por cuenta. | Issue #23 cerrado; PR #24 integrado en main, merge `9abbb99`, CI aprobado. Validaciones previas: 376 pruebas, typecheck, lint y build. Depende de A, B y de la sesión web de OE-01-003A. |
 
 La estimación de la fila principal se conserva como referencia original; este desglose no añade puntos ni estimaciones independientes.
 
@@ -122,3 +121,14 @@ La estimación de la historia principal se conserva como referencia original; es
 La configuración manual del tenant, las aplicaciones y el flujo de usuario constituye avance de OE-01-001; no implica por sí sola la finalización de toda esa historia.
 
 La autorización debe aplicarse en la API. Ocultar elementos o restringir navegación en la web no sustituye la comprobación de permisos en el servidor.
+
+## Desglose de OE-01-002 — Autorización en la API
+
+| Parte | Alcance | Seguimiento |
+|---|---|---|
+| OE-01-002A | Validar access tokens y roles de aplicación. | Issue #19, PR #20 integrado. |
+| OE-01-002B | Identidad local y asignación transaccional del creador en event_staff. | Issue #25, rama `feat/25-event-organizer-assignment`. Comprobación manual y validación global aprobadas: 398 pruebas, typecheck, lint y build. Pendientes revisión del commit, PR, CI y merge. |
+
+OE-01-002B prepara una dependencia de OE-02-002. La consulta y edición deberán aplicar expresamente los permisos por evento. La asignación automática del creador no completa la protección de las demás rutas ni la administración de personal.
+
+OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperable: existe persistencia y confirmación de creación; la recuperación desde una función de consulta sigue pendiente en OE-02-002. No se declara completado ese recorrido de consulta.

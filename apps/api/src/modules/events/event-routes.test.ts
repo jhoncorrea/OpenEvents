@@ -38,6 +38,14 @@ const deniedRoles: { name: string; roles: AppRole[] }[] = [
 
 const invalidBodies = [
   {
+    name: "caller-supplied creator",
+    body: { ...validInput, userId: organizer.objectId },
+  },
+  {
+    name: "caller-supplied authenticated identity",
+    body: { ...validInput, authenticatedUser: organizer },
+  },
+  {
     name: "empty event name",
     body: { ...validInput, name: " " },
   },
@@ -112,7 +120,7 @@ describe("POST /api/v1/events", () => {
     expect(verifyAccessToken).toHaveBeenCalledExactlyOnceWith(
       "test-token",
     );
-    expect(createEvent).toHaveBeenCalledExactlyOnceWith(validInput);
+    expect(createEvent).toHaveBeenCalledExactlyOnceWith(validInput, organizer);
   });
 
   it.each(deniedRoles)(
@@ -214,6 +222,37 @@ describe("POST /api/v1/events", () => {
       });
     },
   );
+
+  it("returns 403 when the operation rejects a disabled local user", async () => {
+    createEvent.mockRejectedValue(new AuthorizationError());
+    const logError = vi.spyOn(app.log, "error");
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/events",
+      headers: { authorization: "Bearer test-token" },
+      payload: validInput,
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({
+      code: "FORBIDDEN",
+      message: "No tienes los permisos necesarios para esta operación.",
+    });
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(logError).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 when the operation rejects the identity", async () => {
+    createEvent.mockRejectedValue(new AuthenticationError());
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/events",
+      headers: { authorization: "Bearer test-token" },
+      payload: validInput,
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe("UNAUTHORIZED");
+    expect(response.headers["www-authenticate"]).toBe("Bearer");
+  });
 
   it("returns 409 for a duplicate slug", async () => {
     createEvent.mockRejectedValue(new EventSlugConflictError());

@@ -126,7 +126,7 @@ El esquema se administrará mediante Drizzle ORM, Drizzle Kit y migraciones SQL 
 
 - Las tablas con columna `id` utilizan UUID generados por PostgreSQL mediante `gen_random_uuid()`.
 - `event_staff` utiliza la clave primaria compuesta `(event_id, user_id)`.
-- Todos los campos declarados son obligatorios excepto `qr_credential.revoked_at`, que admite `NULL`.
+- Admiten `NULL`: `qr_credential.revoked_at` y, desde OE-01-002B, `user.email` y `user.display_name`. Los demás campos declarados siguen siendo obligatorios.
 - `NOT NULL` impide valores nulos; no sustituye la validación de textos vacíos, correos ni otros formatos en la aplicación.
 - El correo del asistente no tiene restricción única. La identidad del asistente se representa mediante su UUID.
 
@@ -173,3 +173,12 @@ El esquema se administrará mediante Drizzle ORM, Drizzle Kit y migraciones SQL 
 - También comprueban referencias inexistentes, borrado restringido, fechas inválidas y un estado de evento no permitido.
 - Cada prueba revierte su transacción para descartar sus datos.
 - La prueba de solicitudes simultáneas y la traducción de errores a `accepted`, `duplicate` o `invalid` corresponden a la implementación del check-in persistido.
+## 7. Identidad y asignación — OE-01-002B
+
+La migración `0001_absent_tigra.sql` elimina únicamente NOT NULL de `user.email` y `user.display_name`; conserva las filas y restricciones restantes. El historial y snapshot de Drizzle se versionan con el SQL.
+
+La API identifica al usuario mediante `entra:<tenantId>:<objectId>` en `external_subject`, normalizado a minúsculas. Los datos de perfil ausentes quedan nulos; no se inventan ni se usan para autorización. La operación reutiliza identidades existentes y rechaza usuarios deshabilitados.
+
+La creación HTTP inserta evento y `event_staff` con rol `organizer` en una transacción, junto con el usuario si es nuevo. Una asignación fallida no deja el evento guardado. Las solicitudes concurrentes reutilizan la identidad y la unicidad de slug conserva un único ganador.
+
+No se asignan automáticamente eventos anteriores ni se convierten identidades antiguas de otros formatos. Su asociación exige una revisión explícita. Consulta [autenticación](authentication.md) para el alcance y las limitaciones.

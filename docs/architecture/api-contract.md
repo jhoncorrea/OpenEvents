@@ -2,13 +2,13 @@
 
 Este documento describe la API objetivo del MVP. No todas las rutas ni convenciones aquí propuestas están implementadas.
 
-## Estado implementado — OE-01-002A y OE-02-001B
+## Estado implementado — OE-01-002A/B y OE-02-001B/C
 
 - `GET /health` es público.
 - `GET /api/v1/auth/me` requiere un access token válido para la API, la aplicación cliente permitida y el scope `access_as_user`. Devuelve la identidad y los roles reconocidos; no exige un rol específico.
 - `GET /api/events/current` y `POST /api/check-ins` son rutas demo que siguen abiertas.
 - `POST /api/v1/events` exige autenticación válida y el rol `organizer`, y crea un evento persistido en estado `draft`.
-- La autorización por evento mediante `event_staff` sigue pendiente.
+- Se asigna al creador en `event_staff`; la autorización de consultas y ediciones por evento sigue pendiente.
 
 La autenticación implementada responde con errores planos `{ code, message }` y estados 401, 403 o 500. El contenedor `error`, el campo `correlationId` y la convención `X-Correlation-Id` descritos más abajo siguen siendo parte del contrato objetivo.
 
@@ -81,7 +81,7 @@ Se devuelve directamente el evento. Esta entrega no implementa GET de eventos ni
 |---|---|---|
 | 400 | `INVALID_EVENT_INPUT` | El cuerpo JSON no cumple el esquema; no se inserta. |
 | 401 | `UNAUTHORIZED` | Falta Bearer, está mal formado o el token es inválido. |
-| 403 | `FORBIDDEN` | Cliente, scope o rol no permitido. |
+| 403 | `FORBIDDEN` | Cliente, scope o rol no permitido, o usuario local deshabilitado. |
 | 409 | `EVENT_SLUG_CONFLICT` | El slug ya existe; se conserva el evento original. |
 | 500 | `INTERNAL_SERVER_ERROR` | Fallo operativo de autenticación o fallo inesperado al crear el evento. |
 
@@ -104,7 +104,7 @@ Se utiliza la tabla `event` y las migraciones existentes. La operación interna 
 
 `DATABASE_URL` es obligatoria en el servidor. Antes de escuchar se comprueba PostgreSQL con `SELECT 1`; las migraciones se aplican por separado. El pool se libera al cerrar Fastify.
 
-La ruta no asigna al creador a `event_staff` ni registra una auditoría completa. El formulario web se incorpora en OE-02-001C (Issue #23); las demás operaciones de eventos siguen pendientes.
+Desde OE-01-002B, la ruta asigna al creador a `event_staff` dentro de la transacción de creación; la auditoría completa sigue pendiente. El formulario web se incorpora en OE-02-001C (Issue #23); las demás operaciones de eventos siguen pendientes.
 
 Las pruebas HTTP aisladas simulan persistencia. Las de integración utilizan PostgreSQL real y un verificador de tokens simulado, con una transacción que se revierte por prueba.
 
@@ -120,7 +120,11 @@ El Issue #23 incorpora el formulario sin modificar el contrato HTTP de OE-02-001
 - Bloquear envíos simultáneos en la interfaz no añade idempotencia a la API. El conflicto de slug no devuelve el evento existente ni demuestra por sí solo que corresponda al envío anterior.
 - Los borradores por cuenta se guardan en sessionStorage, sin tokens, y se recuperan tras recarga. Se eliminan tras creación confirmada o antes del cierre de sesión.
 
-No se incorporan GET de eventos, edición, activación, cierre, asignación event_staff ni auditoría completa. La protección de las demás funciones web sigue pendiente.
+OE-02-001C no incorporó GET de eventos, edición, activación, cierre, asignación event_staff ni auditoría completa. La asignación se incorpora posteriormente en OE-01-002B. La protección de las demás funciones web sigue pendiente.
+
+## Asignación del organizador — OE-01-002B
+
+El Issue #25 añade identidad local y asignación transaccional sin modificar los seis campos de entrada ni la respuesta 201. Los usuarios locales deshabilitados reciben 403. Los eventos anteriores sin asignación permanecen sin asignación automática. Consulta [la identidad local y sus límites](authentication.md#identidad-local-y-asignación-del-creador--oe-01-002b).
 
 ## Contrato objetivo del MVP
 

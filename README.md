@@ -6,11 +6,11 @@ OpenEvents es una plataforma open source para gestionar la operación de eventos
 
 La web incorpora inicio y cierre de sesión con Microsoft Entra External ID mediante MSAL. La API valida access tokens y dispone de controles reutilizables de roles. La ruta protegida `GET /api/v1/auth/me` devuelve la identidad y los roles del usuario. El botón «Comprobar acceso» solicita un access token para la API y consulta esa ruta; se verificó manualmente el rol `organizer` con un token real.
 
-`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La autorización por evento mediante `event_staff` está pendiente.
+`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La asignación del creador en `event_staff` está implementada; su uso para autorizar consultas y ediciones sigue pendiente.
 
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
-`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La autorización por evento mediante `event_staff` sigue pendiente.
+`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; consultar y editar con permisos por evento sigue pendiente.
 
 ## Arquitectura inicial
 
@@ -350,7 +350,7 @@ No se añaden migraciones, formulario web, autorización con `event_staff`, audi
 
 ### Creación de eventos desde la web — OE-02-001C
 
-Seguimiento: Issue #23, rama `feat/23-create-event-web`. Requisitos: RF-EVT-001, RF-AUT-001 y RF-AUT-002. Implementación local; PR y merge pendientes.
+Seguimiento: Issue #23, rama `feat/23-create-event-web`. Requisitos: RF-EVT-001, RF-AUT-001 y RF-AUT-002. Integrado mediante PR #24, merge `9abbb99`, con CI aprobado.
 
 1. Inicia sesión y pulsa «Comprobar acceso».
 2. La web consulta `/api/v1/auth/me`. Solo habilita el formulario si la identidad incluye `organizer`.
@@ -377,6 +377,14 @@ Pruebas específicas aprobadas: 39 de validación, 39 del cliente HTTP, 18 de bo
 Comprobaciones manuales realizadas: creación con una cuenta `organizer` y token real, conversión de 09:00–17:00 en Lima a 14:00–22:00 UTC, rechazo de slug repetido conservando los campos, recuperación tras recarga y limpieza tras cerrar e iniciar sesión. No se ha comprobado manualmente una renovación interactiva forzada de Microsoft ni un fallo de red durante la creación.
 
 Esta entrega no modifica la API, el esquema o las migraciones. No añade consulta, edición, activación o cierre de eventos, asignaciones `event_staff`, auditoría completa ni recursos Azure. Las rutas y la interfaz demo permanecen abiertas. OE-01-003B recibe un avance parcial limitado a la creación de eventos.
+
+### Asignación del organizador — OE-01-002B
+
+Issue #25. La API vincula al creador autenticado con el evento mediante una identidad local `entra:<tenantId>:<objectId>`. Usuario nuevo, evento y asignación se guardan en una transacción; un usuario local deshabilitado recibe 403. Los datos de perfil ausentes quedan nulos.
+
+Antes de arrancar con este cambio, aplica las migraciones con `pnpm --filter @openevents/api db:migrate`. La migración nueva conserva los datos existentes y permite nulos en el perfil del usuario.
+
+La creación y asignación se verificaron manualmente desde la web y PostgreSQL. Los eventos anteriores no se asignan automáticamente. No se implementan todavía consulta o edición con permisos por evento ni administración del personal. Véase [autenticación](docs/architecture/authentication.md).
 
 ## Comandos
 
