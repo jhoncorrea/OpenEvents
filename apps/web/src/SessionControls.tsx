@@ -12,6 +12,7 @@ import {
 } from "./api-events";
 import { parseAuthConfig } from "./auth-config";
 import { clearEventDraft } from "./event-draft";
+import { EventQueryError } from "./event-query-error";
 import type { CreateEventPayload } from "./event-form";
 
 function FormLoadError() {
@@ -34,6 +35,14 @@ const CreateEventForm = lazy(() =>
   })),
 );
 
+const MyEvents = lazy(() => import("./MyEvents").catch(() => ({
+  default: function QueryLoadError() {
+    return <section className="session-panel" role="alert">
+      <p>No pudimos cargar Mis eventos. Recarga la página e inténtalo nuevamente.</p>
+      <button type="button" onClick={() => window.location.reload()}>Recargar página</button>
+    </section>;
+  },
+})));
 interface AccountControlsProps {
   instance: IPublicClientApplication;
   account: AccountInfo | null;
@@ -206,6 +215,41 @@ function AccountControls({
     }
   }
 
+  async function queryEvents(cursor: string | undefined, signal: AbortSignal) {
+    if (signal.aborted) throw new EventQueryError("cancelled");
+    if (!account || !isCurrentAccount() || !canCreate || busy || operationLock.current) {
+      throw new EventQueryError("unauthorized");
+    }
+    const config = parseAuthConfig(import.meta.env);
+    try {
+      const { listApiEvents } = await import("./api-event-queries");
+      const page = await listApiEvents({ instance, account, apiScope: config.apiScope,
+        apiUrl: import.meta.env.VITE_API_URL ?? "", cursor, signal });
+      if (signal.aborted || !isCurrentAccount()) throw new EventQueryError("cancelled");
+      return page;
+    } catch (error) {
+      if (signal.aborted || !isCurrentAccount()) throw new EventQueryError("cancelled");
+      throw error;
+    }
+  }
+
+  async function queryDetail(eventId: string, signal: AbortSignal) {
+    if (signal.aborted) throw new EventQueryError("cancelled");
+    if (!account || !isCurrentAccount() || !canCreate || busy || operationLock.current) {
+      throw new EventQueryError("unauthorized");
+    }
+    const config = parseAuthConfig(import.meta.env);
+    try {
+      const { getApiEvent } = await import("./api-event-queries");
+      const event = await getApiEvent({ instance, account, apiScope: config.apiScope,
+        apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, signal });
+      if (signal.aborted || !isCurrentAccount()) throw new EventQueryError("cancelled");
+      return event;
+    } catch (error) {
+      if (signal.aborted || !isCurrentAccount()) throw new EventQueryError("cancelled");
+      throw error;
+    }
+  }
   async function handleCreate(input: CreateEventPayload) {
     if (
       !account ||
@@ -226,13 +270,15 @@ function AccountControls({
     try {
       const authConfig = parseAuthConfig(import.meta.env);
 
-      return await createApiEvent({
+      const created = await createApiEvent({
         instance,
         account,
         apiScope: authConfig.apiScope,
         apiUrl: import.meta.env.VITE_API_URL ?? "",
         input,
       });
+      if (isCurrentAccount()) setNotice('Evento creado. Pulsa Cargar eventos para consultar el listado actualizado.');
+      return created;
     } finally {
       operationLock.current = false;
       setPending(null);
@@ -259,7 +305,7 @@ function AccountControls({
                     ? "Procesando sesión…"
                     : account
                       ? "Has iniciado sesión en OpenEvents."
-                      : "Inicia sesión para acceder a la creación de eventos."}
+                      : "Inicia sesión para consultar y crear eventos."}
             </p>
           </div>
 
@@ -286,7 +332,7 @@ function AccountControls({
               {pending === "api" ? "Comprobando…" : "Comprobar acceso"}
             </button>
 
-            <p>Comprueba tus permisos para crear eventos.</p>
+            <p>Comprueba tus permisos para consultar y crear eventos.</p>
           </div>
         )}
 
@@ -316,6 +362,17 @@ function AccountControls({
         {error && <p role="alert">{error}</p>}
       </section>
 
+      {account && canCreate && !busy && (
+        <Suspense fallback={<p role="status">Cargando Mis eventos…</p>}>
+          <MyEvents
+            accountKey={accountKey(account)}
+            enabled={canCreate && !busy}
+            loadPage={queryEvents}
+            loadDetail={queryDetail}
+            onAccessInvalidated={() => { if (isCurrentAccount()) invalidateAccess(); }}
+          />
+        </Suspense>
+      )}
       {account && formOpened && (
         <div hidden={!canCreate}>
           <Suspense

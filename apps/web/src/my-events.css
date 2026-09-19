@@ -1,0 +1,15 @@
+.my-events { margin-top: 24px; padding: clamp(20px, 4vw, 36px); border: 1px solid #cddbd3; border-radius: 18px; background: #fff; }
+.my-events-header, .my-events-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.my-events h3 { margin: 0; overflow-wrap: anywhere; }
+.my-events p { line-height: 1.65; }
+.my-events button { padding: 12px 18px; border: 1px solid #173c30; border-radius: 9px; background: #173c30; color: white; font-weight: 600; cursor: pointer; }
+.my-events button:disabled { opacity: .55; cursor: not-allowed; }
+.my-events button:focus-visible, .my-events h2:focus-visible { outline: 3px solid #4973db; outline-offset: 4px; }
+.my-events-list { padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.my-events-list li { padding: 22px; border: 1px solid #dce5df; border-radius: 12px; background: #f8faf7; overflow-wrap: anywhere; }
+.my-events-status { background: #e0eedc; color: #1d422e; border-radius: 20px; padding: 5px 11px; font-size: .85rem; }
+.my-events-error { color: #942b25; background: #fff0ee; padding: 14px; border-left: 4px solid #a82e26; border-radius: 6px; }
+.my-events-detail { display: grid; grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); gap: 14px 20px; margin-top: 24px; }
+.my-events-detail dt { font-weight: 700; }
+.my-events-detail dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .my-events-detail { grid-template-columns: 1fr; gap: 5px; } .my-events-detail dd { margin-bottom: 12px; } }

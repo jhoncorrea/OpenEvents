@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -23,6 +24,7 @@ import {
 } from "vitest";
 import SessionControls from "./SessionControls";
 import { fetchApiIdentity } from "./api-auth";
+import { listApiEvents, getApiEvent, EventQueryError, type ApiEventPage } from "./api-event-queries";
 import { createApiEvent } from "./api-events";
 import {
   readEventDraft,
@@ -46,6 +48,10 @@ vi.mock("./api-events", async (importOriginal) => {
   };
 });
 
+vi.mock("./api-event-queries", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./api-event-queries")>();
+  return { ...original, listApiEvents: vi.fn(), getApiEvent: vi.fn() };
+});
 const account: AccountInfo = {
   homeAccountId: "test-home",
   localAccountId: "11111111-1111-4111-8111-111111111111",
@@ -459,5 +465,93 @@ describe("SessionControls", () => {
     ).toBe(true);
 
     expect(fetchApiIdentity).toHaveBeenCalledTimes(1);
+  });
+});
+const queriedEvent = {
+  id: "a5555555-5555-4555-8555-555555555555", name: "Evento consultado", slug: "evento-consultado",
+  startsAt: "2027-08-27T14:00:00Z", endsAt: "2027-08-27T22:00:00Z", createdAt: "2026-09-19T12:00:00Z",
+  timezone: "America/Lima", location: "Lugar consultado", status: "draft" as const,
+};
+
+describe("SessionControls event queries", () => {
+  beforeEach(() => {
+    vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });
+    vi.mocked(getApiEvent).mockResolvedValue(queriedEvent);
+  });
+  async function showEvents() {
+    checkAccess();
+    fireEvent.click(await screen.findByRole("button", { name: "Cargar eventos" }));
+    await screen.findByRole("button", { name: "Ver detalle de Evento consultado" });
+  }
+  it("requires verified organizer access before showing queries", async () => {
+    setup();
+    expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull();
+    vi.mocked(fetchApiIdentity).mockResolvedValue({ ...identity, roles: ["admin"] });
+    checkAccess(); await screen.findByText(/Tu cuenta no tiene el rol organizer/);
+    expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull();
+    expect(listApiEvents).not.toHaveBeenCalled();
+  });
+  it("uses the current account and scope for list and detail", async () => {
+    const view = setup(); await showEvents();
+    expect(listApiEvents).toHaveBeenCalledExactlyOnceWith({
+      instance: view.instance, account, apiScope: "api://44444444-4444-4444-8444-444444444444/access_as_user",
+      apiUrl: "http://localhost:3001", cursor: undefined, signal: expect.any(AbortSignal),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Evento consultado" }));
+    await screen.findByText(queriedEvent.id);
+    expect(getApiEvent).toHaveBeenCalledWith(expect.objectContaining({ account, eventId: queriedEvent.id }));
+  });
+  it("clears displayed events when the account changes", async () => {
+    const view = setup(); await showEvents();
+    view.switchAccount({ ...account, homeAccountId: "other-account" });
+    expect(screen.queryByText("Evento consultado")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull();
+  });
+  it("aborts and ignores a previous account's pending response", async () => {
+    const request = deferred<ApiEventPage>(); vi.mocked(listApiEvents).mockReturnValue(request.promise);
+    const view = setup(); checkAccess(); fireEvent.click(await screen.findByText("Cargar eventos"));
+    await waitFor(() => expect(listApiEvents).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(listApiEvents).mock.calls[0][0].signal;
+    view.switchAccount({ ...account, homeAccountId: "other-account" });
+    expect(signal?.aborted).toBe(true);
+    await act(async () => request.resolve({ items: [queriedEvent], nextCursor: null }));
+    expect(screen.queryByText("Evento consultado")).toBeNull();
+  });
+  it("clears events when logout starts", async () => {
+    const view = setup(); await showEvents();
+    fireEvent.click(screen.getByText("Cerrar sesión"));
+    expect(screen.queryByText("Evento consultado")).toBeNull();
+    await waitFor(() => expect(view.logoutRedirect).toHaveBeenCalled());
+  });
+  it("aborts queries during an MSAL interaction", async () => {
+    const request = deferred<ApiEventPage>(); vi.mocked(listApiEvents).mockReturnValue(request.promise);
+    const view = setup(); checkAccess(); fireEvent.click(await screen.findByText("Cargar eventos"));
+    await waitFor(() => expect(listApiEvents).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(listApiEvents).mock.calls[0][0].signal;
+    view.setProgress(InteractionStatus.AcquireToken);
+    expect(signal?.aborted).toBe(true); expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull();
+    await act(async () => request.resolve({ items: [queriedEvent], nextCursor: null }));
+  });
+  it("invalidates access after a query rejection while retaining form fields", async () => {
+    const view = setup(); await showEvents(); await expectCreationEnabled();
+    fireEvent.change(screen.getByLabelText("Nombre del evento"), { target: { value: "Mi borrador" } });
+    vi.mocked(getApiEvent).mockRejectedValue(new EventQueryError("forbidden"));
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Evento consultado" }));
+    await screen.findByText(/Vuelve a comprobar el acceso antes de continuar/);
+    expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull();
+    checkAccess(); await expectCreationEnabled();
+    expect((screen.getByLabelText("Nombre del evento") as HTMLInputElement).value).toBe("Mi borrador");
+    expect(view.instance).toBeTruthy();
+  });
+  it("allows reloading the list after creation and retains the confirmation", async () => {
+    saveEventDraft(draftKey(account), { values, outcomeUncertain: false });
+    setup(); await showEvents(); await expectCreationEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Crear evento" }));
+    await screen.findByText("Evento creado correctamente");
+    expect(screen.queryByText("Evento consultado")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Cargar eventos" }));
+    await screen.findByRole("button", { name: "Ver detalle de Evento consultado" });
+    expect(screen.getByText("Evento creado correctamente")).toBeTruthy();
+    expect(listApiEvents).toHaveBeenCalledTimes(2);
   });
 });

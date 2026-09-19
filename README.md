@@ -10,7 +10,7 @@ La web incorpora inicio y cierre de sesión con Microsoft Entra External ID medi
 
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
-`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; la API permite listar y consultar los eventos asignados. La edición y la pantalla web de consulta siguen pendientes.
+`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; la API permite listar y consultar los eventos asignados. La web permite listar y consultar esos eventos; la edición sigue pendiente.
 
 ## Arquitectura inicial
 
@@ -46,7 +46,7 @@ Código QR de demostración: `OE-2027-001`.
 
 La API exige las cinco variables `ENTRA_*` y `DATABASE_URL` indicadas en la tabla. Valida la configuración y comprueba la conexión a PostgreSQL antes de escuchar solicitudes. El archivo `.env` es opcional si las variables ya están proporcionadas por el entorno. `PORT` y `HOST` conservan sus valores predeterminados.
 
-La web requiere las cinco variables `VITE_ENTRA_*`, incluido el scope de la API. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. Configura también `VITE_API_URL`: los clientes de identidad y creación no aplican un valor predeterminado.
+La web requiere las cinco variables `VITE_ENTRA_*`, incluido el scope de la API. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. Configura también `VITE_API_URL`: los clientes de identidad, creación y consulta no aplican un valor predeterminado.
 
 Para crear los archivos locales en PowerShell, ejecuta los siguientes comandos solamente si los archivos de destino todavía no existen. Si ya existen, edítalos conservando su configuración:
 
@@ -66,7 +66,7 @@ El primer comando crea la configuración local de la API a partir de su ejemplo.
 | API | `ENTRA_WEB_CLIENT_ID` | Sin valor predeterminado | UUID de la aplicación cliente permitida. |
 | API | `ENTRA_ISSUER` | Sin valor predeterminado | Emisor esperado; URL HTTPS sin credenciales, query ni fragmento. |
 | API | `ENTRA_JWKS_URI` | Sin valor predeterminado | URL HTTPS de las claves públicas de Entra. |
-| Web | `VITE_API_URL` | Sin valor predeterminado para identidad y creación | URL base de la API; en desarrollo, `http://localhost:3001`. Para consultar identidad y crear eventos admite HTTPS o HTTP en localhost, sin credenciales, consulta ni fragmento. |
+| Web | `VITE_API_URL` | Sin valor predeterminado para identidad, creación y consulta | URL base de la API; en desarrollo, `http://localhost:3001`. Para consultar identidad, crear y consultar eventos admite HTTPS o HTTP en localhost, sin credenciales, consulta ni fragmento. |
 | API / herramientas de base de datos | `DATABASE_URL` | Sin valor predeterminado | URL de PostgreSQL requerida para arrancar la API, aplicar migraciones y ejecutar pruebas de integración. |
 | Web | `VITE_ENTRA_CLIENT_ID` | Sin valor predeterminado | Identificador de la aplicación web registrada como SPA en Entra. |
 | Web | `VITE_ENTRA_TENANT_ID` | Sin valor predeterminado | Identificador del tenant externo de Entra. |
@@ -394,7 +394,21 @@ La lista usa `limit` (20 por defecto, máximo 100) y un `cursor` opcional. Se or
 
 Se comprobaron 45 pruebas de validación, 41 HTTP aisladas, 16 de consulta con PostgreSQL y 12 HTTP con PostgreSQL. La comprobación manual con sesión real confirmó listado y detalle 200, falta de token 401, evento inexistente 404 y límite inválido 400. No había segunda página en esa cuenta; la paginación se verificó mediante pruebas automatizadas.
 
-Esta entrega no añade pantalla web de consulta, edición, migraciones ni recursos Azure. Validación global aprobada: 250 pruebas de API, 194 de web y 68 de integración PostgreSQL (512 en total), además de typecheck, lint y build. El cierre del PR sigue pendiente. Consulta el [contrato de API](docs/architecture/api-contract.md) para los errores y límites de paginación.
+Esta entrega no añade pantalla web de consulta, edición, migraciones ni recursos Azure. Validación global aprobada: 250 pruebas de API, 194 de web y 68 de integración PostgreSQL (512 en total), además de typecheck, lint y build. PR #28 integrado en `main`, merge `bf74848`; CI aprobado según comprobación del mantenedor. Consulta el [contrato de API](docs/architecture/api-contract.md) para los errores y límites de paginación.
+
+### Consulta desde la web — OE-02-002B
+
+Issue #29. Después de iniciar sesión y comprobar el rol `organizer`, «Mis eventos» permite cargar los eventos asignados, consultar su detalle, volver al listado, actualizar desde la primera página y cargar más resultados. La carga inicial requiere pulsar «Cargar eventos». Las fechas se muestran en la zona horaria de cada evento; el orden de la API es por UUID, no cronológico.
+
+El cliente valida las respuestas y muestra mensajes controlados para lista vacía, errores y eventos que ya no están disponibles. Las consultas obtienen el token silenciosamente, no redirigen ni reintentan automáticamente. Un error de autenticación o autorización limpia los datos y pide comprobar nuevamente el acceso. Al cambiar de cuenta, perder acceso, iniciar la salida o una interacción de sesión, se descartan los datos y se cancelan las consultas pendientes; las respuestas tardías no se muestran.
+
+La creación conserva su formulario y sus borradores. Tras una creación confirmada, se indica cargar nuevamente el listado; no se refresca automáticamente. El listado no se persiste en almacenamiento del navegador.
+
+El formulario, «Mis eventos» y el cliente de consultas usan carga diferida. La autenticación se distribuye en un archivo separado. Build local final: principal 240,51 kB y autenticación 259,39 kB, sin aviso de archivos mayores de 500 kB. La separación no implica por sí sola una reducción del total descargado.
+
+Validación global local: 250 pruebas de API, 263 de web y 68 de integración PostgreSQL (581 en total), typecheck, lint y build aprobados. Después del ajuste de carga se repitieron 108 pruebas relacionadas, typecheck y lint web; el build final y `git diff --check` también pasaron. Se comprobó manualmente el listado, detalle, fechas de Lima y vuelta al listado con una sesión real. Paginación, cambios de cuenta, cancelaciones y recarga tras creación están cubiertos por pruebas automatizadas; no se declara su comprobación manual.
+
+La entrega no añade edición, migraciones ni endpoints. Las rutas demo conservan su alcance público. Pendientes revisión final, PR, CI y merge de #29.
 
 ## Comandos
 

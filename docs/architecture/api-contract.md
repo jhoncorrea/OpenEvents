@@ -2,7 +2,7 @@
 
 Este documento describe la API objetivo del MVP. No todas las rutas ni convenciones aquí propuestas están implementadas.
 
-## Estado implementado — OE-01-002A/B, OE-02-001B/C y OE-02-002A
+## Estado implementado — OE-01-002A/B, OE-02-001B/C y OE-02-002A/B
 
 - `GET /health` es público.
 - `GET /api/v1/auth/me` requiere un access token válido para la API, la aplicación cliente permitida y el scope `access_as_user`. Devuelve la identidad y los roles reconocidos; no exige un rol específico.
@@ -104,7 +104,7 @@ Se utiliza la tabla `event` y las migraciones existentes. La operación interna 
 
 `DATABASE_URL` es obligatoria en el servidor. Antes de escuchar se comprueba PostgreSQL con `SELECT 1`; las migraciones se aplican por separado. El pool se libera al cerrar Fastify.
 
-Desde OE-01-002B, la ruta asigna al creador a `event_staff` dentro de la transacción de creación; la auditoría completa sigue pendiente. El formulario web se incorpora en OE-02-001C (Issue #23); las demás operaciones de eventos siguen pendientes.
+Desde OE-01-002B, la ruta asigna al creador a `event_staff` dentro de la transacción de creación; la auditoría completa sigue pendiente. El formulario web se incorpora en OE-02-001C (Issue #23); la consulta se incorpora en OE-02-002A/B y la edición sigue pendiente.
 
 Las pruebas HTTP aisladas simulan persistencia. Las de integración utilizan PostgreSQL real y un verificador de tokens simulado, con una transacción que se revierte por prueba.
 
@@ -312,3 +312,11 @@ Devuelve los ingresos recientes con paginación por cursor.
 - definir rate limiting;
 - definir estrategia de idempotencia para importaciones;
 - revisar exposición mínima de datos del asistente en la respuesta.
+
+## Cliente web de consultas — OE-02-002B
+
+Issue #29 consume el listado y detalle de OE-02-002A sin modificar su contrato. Solicita páginas de 20 elementos y utiliza `nextCursor` para continuar; actualizar comienza por la primera página. El detalle se vuelve a solicitar a la API al abrirlo, en lugar de asumir que la copia del listado sigue vigente.
+
+El cliente valida identificadores, fechas UTC, zona horaria, estados y estructura de páginas; descarta campos adicionales y rechaza respuestas incoherentes. Se muestran fechas en la zona horaria del evento. No se promete orden cronológico ni una instantánea entre páginas.
+
+Las solicitudes utilizan Bearer, `cache: no-store`, `credentials: omit` y `redirect: error`. El fetch tiene un límite de 15 segundos y admite cancelación. No hay reintentos ni redirecciones de autenticación automáticas desde las consultas. Un 404 de detalle retira ese evento del listado; no distingue entre evento ajeno, eliminado o inexistente. Los errores no presentan el cuerpo original de la respuesta.

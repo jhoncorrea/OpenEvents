@@ -114,7 +114,7 @@ OE-01-003 conserva su identificador como historia principal. Se implementará me
 | Parte | Alcance | Seguimiento |
 |---|---|---|
 | OE-01-003A | Integrar inicio y cierre de sesión con Microsoft Entra External ID, configuración validada, visualización de la cuenta y manejo de errores. | Issue #17. |
-| OE-01-003B | Proteger las rutas web e integrar el acceso a las operaciones protegidas de la API. | Avance parcial en OE-02-001C (Issue #23), limitado al formulario de creación. Sigue pendiente la protección de las demás funciones web y la planificación de su Issue. Depende de OE-01-003A y de las capacidades de protección de API de OE-01-002. |
+| OE-01-003B | Proteger las rutas web e integrar el acceso a las operaciones protegidas de la API. | Avance parcial en OE-02-001C (Issue #23) y OE-02-002B (Issue #29): creación y consulta de eventos. Sigue pendiente la protección de las demás funciones web y la planificación de su Issue. Depende de OE-01-003A y de las capacidades de protección de API de OE-01-002. |
 
 La estimación de la historia principal se conserva como referencia original; este desglose no añade puntos ni estimaciones independientes.
 
@@ -131,13 +131,14 @@ La autorización debe aplicarse en la API. Ocultar elementos o restringir navega
 
 OE-01-002B prepara una dependencia de OE-02-002. La consulta y edición deberán aplicar expresamente los permisos por evento. La asignación automática del creador no completa la protección de las demás rutas ni la administración de personal.
 
-OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperable: existe persistencia y confirmación de creación; la recuperación desde una función de consulta sigue pendiente en OE-02-002. No se declara completado ese recorrido de consulta.
+OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperable: existe persistencia y confirmación de creación; la recuperación mediante API se integró en OE-02-002A y la pantalla de consulta se implementó en OE-02-002B, pendiente de integración. La edición continúa pendiente.
 
 ## Desglose de OE-02-002 — Consulta y edición
 
 | Parte | Alcance | Seguimiento |
 |---|---|---|
-| OE-02-002A | Listado paginado y detalle API para organizadores con autorización por evento. | Issue #27, rama `feat/27-event-query-api`. Implementación y pruebas específicas aprobadas; comprobación manual de lectura con sesión real aprobada. Validación global aprobada: 512 pruebas, typecheck, lint y build. Pendientes revisión final, PR, CI y merge. |
-| Posteriores | Pantalla web de consulta y edición autorizada. | Pendientes de planificación; sin Issue asignado en este registro. |
+| OE-02-002A | Listado paginado y detalle API para organizadores con autorización por evento. | Issue #27 cerrado; PR #28 integrado en `main`, merge `bf74848`. CI aprobado según comprobación del mantenedor. Validación local previa: 512 pruebas, typecheck, lint y build. |
+| OE-02-002B | Listado y detalle web, paginación, estados y aislamiento por cuenta. | Issue #29, rama `feat/29-event-query-web`. Implementación y validación local aprobadas: 581 pruebas globales; 108 relacionadas repetidas tras ajuste de carga. Typecheck, lint, build final sin aviso de tamaño y revisión de espacios aprobados. Comprobación manual de listado, detalle y vuelta. Pendientes revisión final, PR, CI y merge. |
+| Posteriores | Edición autorizada de eventos. | Pendiente de planificación; sin Issue asignado en este registro. |
 
-A utiliza las asignaciones de OE-01-002B. Añade la recuperación mediante API; no completa la consulta desde una pantalla web ni toda la historia de edición. No se añaden estimaciones independientes.
+A utiliza las asignaciones de OE-01-002B y añade recuperación mediante API. B incorpora la pantalla web; ninguna de estas entregas completa la edición. No se añaden estimaciones independientes.

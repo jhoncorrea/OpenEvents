@@ -241,3 +241,37 @@ Issue #25 integrado mediante PR #26, commit de merge `9fab3f8`. El mantenedor co
 - Pendientes comprobación final de espacios, revisión del diff, commit/PR, CI y merge.
 - Consulta web, edición, acceso de operadores, administración de personal, auditoría y Azure pendientes.
 - La paginación no es una instantánea y no tiene orden cronológico. auth/me y rutas demo conservan su comportamiento.
+
+## Sesión 007 — 19 de septiembre de 2026
+
+**Objetivo:** OE-02-002B, listar y consultar eventos desde la web.
+**Issue:** #29.
+**Rama:** `feat/29-event-query-web`.
+
+### Cierre anterior
+
+Issue #27 integrado mediante PR #28, merge `bf74848`. El mantenedor confirmó CI verde tras el merge, sincronizó main y eliminó la rama anterior.
+
+### Resultado
+
+- Cliente web para listado paginado y detalle, validación de respuestas y errores controlados.
+- «Mis eventos» con carga explícita, actualización, más resultados, detalle y regreso al listado.
+- Fechas en la zona horaria del evento y etiquetas de estado.
+- Cancelación y descarte de respuestas tardías al cambiar de cuenta o perder acceso; limpieza de datos consultados.
+- Integración con sesión y creación, conservando borradores y permitiendo recargar el listado tras crear.
+- Carga diferida de consultas e interfaz; autenticación separada en el build sin aumentar el umbral de aviso.
+
+### Validación realizada
+
+- 43 pruebas del cliente y 18 del componente; 8 nuevas de sesión (24 de sesión en total).
+- Validación global: 250 pruebas API, 263 web y 68 de integración PostgreSQL, 581 en total. Typecheck, lint y build aprobados.
+- Después de separar la carga del cliente se repitieron las 108 pruebas relacionadas, typecheck y lint web, todos aprobados.
+- Build final con configuración local: principal 240,51 kB, autenticación 259,39 kB; sin aviso de tamaño. `git diff --check` aprobado antes de actualizar documentación.
+- Comprobación manual con sesión real: listado y detalle de `prueba-organizador-001`, fechas 09:00–17:00 de Lima y vuelta al listado.
+- Paginación, aislamiento entre cuentas, cancelaciones y recarga después de crear cubiertos automáticamente; no se declara su comprobación manual.
+
+### Límites y pendientes
+
+- Sin edición, migraciones, endpoints nuevos ni recursos Azure. La demo sigue pública.
+- Listado por UUID, sin orden cronológico ni instantánea entre páginas. Carga y actualización explícitas.
+- Pendientes revisión de documentación y diff, commit, PR, CI y merge.
