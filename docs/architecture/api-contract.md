@@ -2,18 +2,111 @@
 
 Este documento describe la API objetivo del MVP. No todas las rutas ni convenciones aquí propuestas están implementadas.
 
-## Estado implementado — OE-01-002A
+## Estado implementado — OE-01-002A y OE-02-001B
 
 - `GET /health` es público.
 - `GET /api/v1/auth/me` requiere un access token válido para la API, la aplicación cliente permitida y el scope `access_as_user`. Devuelve la identidad y los roles reconocidos; no exige un rol específico.
 - `GET /api/events/current` y `POST /api/check-ins` son rutas demo que siguen abiertas.
-- `POST /api/v1/events` y la autorización por evento mediante `event_staff` están pendientes.
+- `POST /api/v1/events` exige autenticación válida y el rol `organizer`, y crea un evento persistido en estado `draft`.
+- La autorización por evento mediante `event_staff` sigue pendiente.
 
 La autenticación implementada responde con errores planos `{ code, message }` y estados 401, 403 o 500. El contenedor `error`, el campo `correlationId` y la convención `X-Correlation-Id` descritos más abajo siguen siendo parte del contrato objetivo.
 
 Los roles reconocidos son `admin`, `organizer` y `checkin_operator`. No existe una jerarquía implícita entre ellos. Las referencias a «Rol mínimo», «Organizer» y «Operator» en las tablas siguientes describen perfiles funcionales previstos; cada ruta de negocio deberá definir expresamente los roles permitidos y las restricciones por evento.
 
 Consulta [Autenticación de API — OE-01-002A](authentication.md) para conocer el contrato y la configuración implementados.
+
+## Creación de eventos implementada — OE-02-001B
+
+Seguimiento: Issue #21. Requisitos principales: RF-EVT-001, RF-AUT-001 y RF-AUT-002.
+
+### Solicitud
+
+`POST /api/v1/events`
+
+```http
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+El token debe cumplir las validaciones existentes de la API y contener `organizer`. Un usuario que solo tenga `admin` o `checkin_operator` recibe 403. La autenticación y la autorización se ejecutan antes del procesamiento del cuerpo.
+
+Ejemplo:
+
+```json
+{
+  "name": "DevOpsDays Lima 2027",
+  "slug": "devopsdays-lima-2027",
+  "startsAt": "2027-08-27T14:00:00Z",
+  "endsAt": "2027-08-27T22:00:00Z",
+  "timezone": "America/Lima",
+  "location": "Centro de Convenciones de Lima"
+}
+```
+
+| Campo | Regla |
+|---|---|
+| `name` | Obligatorio, hasta 200 caracteres; se eliminan espacios exteriores. |
+| `slug` | Obligatorio, único, hasta 120 caracteres; minúsculas, números y guiones simples entre palabras. |
+| `startsAt` | Fecha y hora ISO 8601 UTC terminada en `Z`. |
+| `endsAt` | Fecha y hora ISO 8601 UTC posterior a `startsAt`. |
+| `timezone` | Zona reconocida por el runtime, hasta 100 caracteres; no admite desplazamientos como `-05:00`. |
+| `location` | Obligatoria, hasta 500 caracteres; se eliminan espacios exteriores. |
+
+Se rechazan campos adicionales, incluidos `id`, `status` y `createdAt`.
+
+### Respuesta 201 Created
+
+Ejemplo ilustrativo; PostgreSQL genera `id` y `createdAt`:
+
+```json
+{
+  "id": "33333333-3333-4333-8333-333333333333",
+  "name": "DevOpsDays Lima 2027",
+  "slug": "devopsdays-lima-2027",
+  "startsAt": "2027-08-27T14:00:00.000Z",
+  "endsAt": "2027-08-27T22:00:00.000Z",
+  "timezone": "America/Lima",
+  "location": "Centro de Convenciones de Lima",
+  "status": "draft",
+  "createdAt": "2026-09-18T18:00:00.000Z"
+}
+```
+
+Se devuelve directamente el evento. Esta entrega no implementa GET de eventos ni devuelve un encabezado `Location`.
+
+### Errores controlados
+
+| HTTP | Código | Situación |
+|---|---|---|
+| 400 | `INVALID_EVENT_INPUT` | El cuerpo JSON no cumple el esquema; no se inserta. |
+| 401 | `UNAUTHORIZED` | Falta Bearer, está mal formado o el token es inválido. |
+| 403 | `FORBIDDEN` | Cliente, scope o rol no permitido. |
+| 409 | `EVENT_SLUG_CONFLICT` | El slug ya existe; se conserva el evento original. |
+| 500 | `INTERNAL_SERVER_ERROR` | Fallo operativo de autenticación o fallo inesperado al crear el evento. |
+
+Ejemplo de conflicto:
+
+```json
+{
+  "code": "EVENT_SLUG_CONFLICT",
+  "message": "Ya existe un evento con ese slug."
+}
+```
+
+Los errores controlados usan `{ code, message }`, sin `correlationId`. Un JSON mal formado se rechaza con 400 antes de la operación y utiliza el formato de Fastify; otros errores del procesamiento HTTP también pueden usar el formato del framework.
+
+El control de autenticación añade `Cache-Control: no-store` y, en respuestas 401, `WWW-Authenticate: Bearer`. La ruta no devuelve ni registra el error original de persistencia; registra un código `EVENT_CREATION_FAILED` y un mensaje genérico.
+
+### Persistencia y límites
+
+Se utiliza la tabla `event` y las migraciones existentes. La operación interna valida antes de insertar. La restricción única de slug evita duplicados.
+
+`DATABASE_URL` es obligatoria en el servidor. Antes de escuchar se comprueba PostgreSQL con `SELECT 1`; las migraciones se aplican por separado. El pool se libera al cerrar Fastify.
+
+La ruta no asigna al creador a `event_staff` ni registra una auditoría completa. El formulario web y las demás operaciones de eventos quedan pendientes.
+
+Las pruebas HTTP aisladas simulan persistencia. Las de integración utilizan PostgreSQL real y un verificador de tokens simulado, con una transacción que se revierte por prueba.
 
 ## Contrato objetivo del MVP
 
@@ -160,4 +253,3 @@ Devuelve los ingresos recientes con paginación por cursor.
 - definir rate limiting;
 - definir estrategia de idempotencia para importaciones;
 - revisar exposición mínima de datos del asistente en la respuesta.
-

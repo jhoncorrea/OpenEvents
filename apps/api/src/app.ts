@@ -6,15 +6,21 @@ import {
   type AccessTokenVerifier,
 } from "./auth/http-auth.js";
 import { registerCheckIn } from "./check-in.js";
+import {
+  registerEventRoutes,
+  type CreateEventOperation,
+} from "./modules/events/event-routes.js";
 
 interface BuildAppOptions {
   logger?: boolean;
   verifyAccessToken: AccessTokenVerifier;
+  createEvent: CreateEventOperation;
 }
 
 export function buildApp({
   logger = false,
   verifyAccessToken,
+  createEvent,
 }: BuildAppOptions) {
   const app = Fastify({
     logger: logger
@@ -45,6 +51,11 @@ export function buildApp({
       return request.authenticatedUser;
     },
   );
+
+  registerEventRoutes(app, {
+    verifyAccessToken,
+    createEvent,
+  });
 
   app.get("/api/events/current", async () => ({
     id: "devopsdays-lima-2027",
