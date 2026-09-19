@@ -98,13 +98,13 @@ OE-02-001 conserva su identificador como historia principal. Se implementará me
 | Parte | Alcance | Seguimiento |
 |---|---|---|
 | OE-02-001A | Validación y operación interna de creación de eventos con persistencia PostgreSQL y pruebas. | Issue #15. |
-| OE-02-001B | Exponer `POST /api/v1/events` con autenticación, autorización de Organizador y pruebas HTTP. | Pendiente de crear Issue; depende de OE-02-001A y de las capacidades de autenticación y roles de OE-01-001/OE-01-002. |
+| OE-02-001B | Exponer `POST /api/v1/events` con autenticación, autorización de Organizador y pruebas HTTP. | Issue #21. Implementado en la rama `feat/21-create-event-api`, con validaciones locales aprobadas; pendiente de PR y merge. Depende de OE-02-001A y de la autenticación y controles de roles de OE-01-002A (Issue #19, PR #20). |
 
 La estimación de la fila principal se conserva como referencia original; este desglose no añade puntos ni estimaciones independientes.
 
 OE-02-002 mantiene su referencia a OE-02-001. No debe interpretarse la finalización de OE-02-001A como cumplimiento de toda esa dependencia.
 
-El formulario web queda fuera de OE-02-001A y su planificación se definirá por separado.
+El formulario web queda fuera de OE-02-001A y OE-02-001B; su planificación se definirá por separado. La entrega B no incorpora autorización por evento mediante event_staff ni completa por sí sola el recorrido web del Organizador.
 
 ## Desglose de OE-01-003 — Sesión y rutas protegidas en la web
 

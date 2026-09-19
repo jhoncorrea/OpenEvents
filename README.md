@@ -10,7 +10,7 @@ La web incorpora inicio y cierre de sesión con Microsoft Entra External ID medi
 
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
-La creación de eventos todavía no está expuesta mediante una ruta HTTP ni un formulario web. Su publicación requiere incorporar autenticación y autorización.
+`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. El formulario web y la autorización por evento mediante `event_staff` siguen pendientes.
 
 ## Arquitectura inicial
 
@@ -19,7 +19,7 @@ La creación de eventos todavía no está expuesta mediante una ruta HTTP ni un 
 - `docs/adr`: decisiones de arquitectura.
 - `docs/project-management`: planificación y registro de sesiones.
 
-PostgreSQL local, el esquema inicial con migraciones versionadas, la sesión web y la autenticación de la API ya están disponibles. La conexión de los endpoints de negocio con la persistencia, sus políticas de autorización y el despliegue en Azure se incorporarán en incrementos posteriores. No se usarán microservicios en el MVP.
+PostgreSQL local, el esquema inicial con migraciones versionadas, la sesión web y la autenticación de la API ya están disponibles. La creación HTTP de eventos ya está conectada a la persistencia y exige autorización de Organizador. Los demás endpoints de negocio, sus políticas de acceso por evento y el despliegue en Azure se incorporarán en incrementos posteriores. No se usarán microservicios en el MVP.
 
 ## Requisitos
 
@@ -29,7 +29,7 @@ PostgreSQL local, el esquema inicial con migraciones versionadas, la sesión web
 
 ## Ejecutar localmente
 
-Antes del primer arranque, configura las variables de autenticación de la API y de la web siguiendo la sección «Variables de entorno». Para iniciar sesión y comprobar el acceso real necesitas acceso al tenant de Microsoft Entra External ID configurado y conexión a internet.
+Antes del primer arranque, configura las variables de autenticación de la API y de la web siguiendo la sección «Variables de entorno». Configura también `DATABASE_URL`, inicia PostgreSQL y aplica las migraciones siguiendo las secciones correspondientes antes de ejecutar `pnpm dev`. Para iniciar sesión y comprobar el acceso real necesitas acceso al tenant de Microsoft Entra External ID configurado y conexión a internet.
 
 ```bash
 pnpm install
@@ -44,7 +44,7 @@ Código QR de demostración: `OE-2027-001`.
 
 ### Variables de entorno
 
-La API exige las cinco variables `ENTRA_*` indicadas en la tabla y valida su formato antes de escuchar solicitudes. El archivo `.env` es opcional si las variables ya están proporcionadas por el entorno. `PORT` y `HOST` conservan sus valores predeterminados.
+La API exige las cinco variables `ENTRA_*` y `DATABASE_URL` indicadas en la tabla. Valida la configuración y comprueba la conexión a PostgreSQL antes de escuchar solicitudes. El archivo `.env` es opcional si las variables ya están proporcionadas por el entorno. `PORT` y `HOST` conservan sus valores predeterminados.
 
 La web requiere las cinco variables `VITE_ENTRA_*`, incluido el scope de la API. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. Configura también `VITE_API_URL`: la consulta de identidad no aplica un valor predeterminado.
 
@@ -67,7 +67,7 @@ El primer comando crea la configuración local de la API a partir de su ejemplo.
 | API | `ENTRA_ISSUER` | Sin valor predeterminado | Emisor esperado; URL HTTPS sin credenciales, query ni fragmento. |
 | API | `ENTRA_JWKS_URI` | Sin valor predeterminado | URL HTTPS de las claves públicas de Entra. |
 | Web | `VITE_API_URL` | Sin valor predeterminado para la consulta de identidad | URL base de la API; en desarrollo, `http://localhost:3001`. Para consultar identidad admite HTTPS o HTTP en localhost. |
-| API / herramientas de base de datos | `DATABASE_URL` | Sin valor predeterminado | URL de PostgreSQL requerida para aplicar migraciones y ejecutar pruebas de integración. |
+| API / herramientas de base de datos | `DATABASE_URL` | Sin valor predeterminado | URL de PostgreSQL requerida para arrancar la API, aplicar migraciones y ejecutar pruebas de integración. |
 | Web | `VITE_ENTRA_CLIENT_ID` | Sin valor predeterminado | Identificador de la aplicación web registrada como SPA en Entra. |
 | Web | `VITE_ENTRA_TENANT_ID` | Sin valor predeterminado | Identificador del tenant externo de Entra. |
 | Web | `VITE_ENTRA_TENANT_SUBDOMAIN` | Sin valor predeterminado | Subdominio del tenant, sin protocolo ni sufijo; por ejemplo, `openeventsdevjhon`. |
@@ -80,7 +80,11 @@ Si falta una variable de autenticación o su formato es inválido, la API rechaz
 
 Los identificadores de aplicación y tenant son configuración pública. La aplicación web no utiliza un secreto de cliente.
 
-`DATABASE_URL` se valida cuando se ejecutan las operaciones de base de datos. La API de demostración todavía puede iniciar sin esta variable. La generación de migraciones tampoco requiere conexión a PostgreSQL.
+`DATABASE_URL` se valida al arrancar la API. El servidor ejecuta `SELECT 1` antes de escuchar; si PostgreSQL no está disponible, el arranque falla y se intenta cerrar el pool. La generación de migraciones no requiere conexión a PostgreSQL.
+
+El pool admite hasta 5 conexiones, con espera de conexión y consulta de 5 segundos, `statement_timeout` de 5 segundos y descarte de conexiones inactivas tras 30 segundos. SIGINT y SIGTERM inician el cierre de Fastify; su hook `onClose` libera el pool. Solicitar varias veces el cierre del pool reutiliza la misma operación.
+
+`/health` permanece público y no consulta PostgreSQL en cada solicitud. La comprobación de conectividad al arrancar no verifica que las migraciones estén aplicadas.
 
 Las variables con prefijo `VITE_` son públicas y quedan incluidas en el código enviado al navegador. Nunca deben contener contraseñas, tokens ni otros secretos.
 
@@ -137,7 +141,7 @@ Las pruebas y la compilación no necesitan iniciar sesión en Azure. Para utiliz
 
 #### Alcance pendiente
 
-La sesión web y la consulta protegida de identidad están implementadas. La interfaz de demostración sigue visible sin iniciar sesión y sus endpoints continúan abiertos. La protección de rutas web y la autorización de las operaciones de negocio están pendientes.
+La sesión web y la consulta protegida de identidad están implementadas. La interfaz de demostración sigue visible sin iniciar sesión y sus endpoints continúan abiertos. La protección de rutas web y la autorización de las demás operaciones de negocio están pendientes. La creación HTTP de eventos ya exige el rol `organizer`.
 
 ### Autenticación de API — OE-01-002A
 
@@ -287,7 +291,9 @@ Las pruebas de integración verifican restricciones únicas, claves foráneas, e
 
 Cada prueba utiliza una transacción que se revierte al terminar para descartar sus datos.
 
-Estas pruebas no verifican todavía la autorización HTTP ni las solicitudes simultáneas del flujo de check-in. Esas comprobaciones se incorporarán con las implementaciones correspondientes.
+Las pruebas de `event-routes.integration.test.ts` comprueban HTTP con PostgreSQL real: creación, conflicto de slug, entrada inválida, rechazo sin token o sin rol y fallo real de escritura. Simulan el verificador de tokens y no se conectan a Entra.
+
+Las solicitudes simultáneas del flujo de check-in siguen fuera de esta entrega.
 
 #### Validación en CI
 
@@ -322,7 +328,25 @@ Si el `slug` ya existe, la operación produce `EventSlugConflictError`, con cód
 
 Esta entrega utiliza la tabla `event` existente y no añade migraciones.
 
-La función es interna: no autentica usuarios ni comprueba roles. Antes de exponerla mediante `POST /api/v1/events`, deberá integrarse con la autenticación y autorización de Organizador. No debe publicarse como una ruta sin protección.
+La función de persistencia sigue siendo interna y no autentica usuarios ni comprueba roles por sí misma. La ruta `POST /api/v1/events`, incorporada en OE-02-001B, aplica esas comprobaciones antes de invocarla.
+
+### Creación HTTP de eventos — OE-02-001B
+
+Seguimiento: Issue #21. `POST /api/v1/events` reutiliza la operación interna existente y exige token válido, cliente y scope permitidos, y el rol `organizer`. `admin` o `checkin_operator` por sí solos no conceden acceso.
+
+La solicitud utiliza los seis campos descritos en la sección anterior. La respuesta `201` contiene el registro creado, con fechas ISO 8601 UTC y estado `draft`.
+
+Los errores controlados son `400 INVALID_EVENT_INPUT`, `401 UNAUTHORIZED`, `403 FORBIDDEN`, `409 EVENT_SLUG_CONFLICT` y `500 INTERNAL_SERVER_ERROR`. Los fallos inesperados de persistencia se registran con código y mensaje genéricos, sin el error original ni los datos de conexión.
+
+Un JSON mal formado es rechazado por Fastify con 400 antes de ejecutar la operación y utiliza el formato de error del framework.
+
+Consulta el [contrato de la API](docs/architecture/api-contract.md) para ver los ejemplos de solicitud y respuesta de OE-02-001B.
+
+`buildApp` recibe la creación como dependencia. El servidor la conecta a Drizzle y PostgreSQL; las pruebas HTTP aisladas simulan persistencia.
+
+Validación específica realizada: 6 pruebas de conexiones, 20 HTTP y 7 HTTP con PostgreSQL real. Se comprobó manualmente el arranque, `/health` con 200, la creación sin token con 401 y el retorno al prompt tras Ctrl+C.
+
+No se añaden migraciones, formulario web, autorización con `event_staff`, auditoría completa ni recursos de Azure. Listar, consultar, editar, activar y cerrar eventos queda fuera de esta entrega.
 
 ## Comandos
 

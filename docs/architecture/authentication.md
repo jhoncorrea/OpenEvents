@@ -1,6 +1,6 @@
 # Autenticación de API — OE-01-002A
 
-Implementación del Issue #19: validación de access tokens y roles de aplicación con Microsoft Entra External ID.
+Implementación del Issue #19: validación de access tokens y roles de aplicación con Microsoft Entra External ID. Actualizado en OE-02-001B (Issue #21) para documentar su uso en la creación de eventos.
 
 ## Estado y alcance
 
@@ -10,6 +10,7 @@ Implementado:
 - Validación de access tokens mediante `jose`.
 - Control reutilizable de autenticación y autorización para Fastify.
 - Ruta protegida `GET /api/v1/auth/me`.
+- Ruta `POST /api/v1/events` protegida con el rol `organizer` (OE-02-001B).
 - Solicitud de un access token desde la web mediante MSAL.
 - Consulta de identidad y roles mediante el botón «Comprobar acceso».
 - Pruebas automatizadas de configuración, verificación de tokens, controles HTTP y cliente web.
@@ -20,13 +21,13 @@ Límites actuales:
 - `GET /health` continúa público.
 - `GET /api/events/current` y `POST /api/check-ins` son rutas demo sin autenticación.
 - La interfaz demo sigue visible sin iniciar sesión.
-- No está implementado `POST /api/v1/events`.
+- El formulario web de creación y las demás operaciones HTTP de eventos siguen pendientes.
 - No está implementada la autorización por evento mediante `event_staff`.
 - Los roles de aplicación no conceden automáticamente acceso a un evento concreto.
 
 ## Configuración de la API
 
-Estas variables son obligatorias al arrancar:
+Estas variables de autenticación son obligatorias al arrancar:
 
 | Variable | Propósito |
 |---|---|
@@ -37,6 +38,8 @@ Estas variables son obligatorias al arrancar:
 | `ENTRA_JWKS_URI` | Dirección HTTPS de las claves públicas de Entra. |
 
 La API carga `apps/api/.env` si existe. Las variables también pueden proporcionarse mediante el entorno.
+
+Desde OE-02-001B, el servidor también exige `DATABASE_URL` y comprueba PostgreSQL antes de escuchar. Esta comprobación es independiente de la autenticación; las migraciones deben aplicarse por separado.
 
 Si falta una variable obligatoria o su formato es inválido, el arranque falla antes de escuchar solicitudes.
 
@@ -79,7 +82,9 @@ Los roles desconocidos se ignoran y los duplicados se eliminan. Un token sin rol
 - `admin` no hereda permisos de otros roles.
 - Omitir la restricción de roles en `createAuthGuard` exige autenticación válida, pero no un rol específico.
 
-Las pruebas HTTP utilizan una ruta temporal para comprobar estas restricciones. Esa ruta no se registra en la aplicación normal.
+Las pruebas de autenticación utilizan una ruta temporal para comprobar estas restricciones. Esa ruta no se registra en la aplicación normal.
+
+La ruta real `POST /api/v1/events` utiliza `createAuthGuard` con `["organizer"]`. Una identidad válida sin ese rol recibe 403, aunque tenga `admin` o `checkin_operator`. Esta comprobación precede al procesamiento del cuerpo y a la creación del evento. Consulta el [contrato de la API](api-contract.md) para conocer OE-02-001B.
 
 ## GET /api/v1/auth/me
 

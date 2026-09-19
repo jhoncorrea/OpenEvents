@@ -65,7 +65,14 @@ describe("HTTP authentication", () => {
       .fn<AccessTokenVerifier>()
       .mockResolvedValue(user);
 
-    app = buildApp({ verifyAccessToken });
+    app = buildApp({
+  verifyAccessToken,
+  createEvent: async () => {
+    throw new Error(
+      "Authentication tests must not invoke event creation.",
+    );
+  },
+});
   });
 
   afterEach(async () => {
