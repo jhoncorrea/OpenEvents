@@ -14,6 +14,8 @@ Desarrollo incremental del MVP. La interfaz web y las rutas de demostración man
 
 La web también permite registrar asistentes en eventos asignados en estado `draft` o `active`, con confirmación, rechazo de duplicados y bloqueo de reenvíos de resultado incierto. La autorización definitiva permanece en la API.
 
+La API también permite listar y consultar inscripciones de eventos asignados, con paginación por cursor y autorización por evento (OE-03-001C). La pantalla web de consulta sigue pendiente.
+
 ## Arquitectura inicial
 
 - `apps/web`: aplicación web mobile-first con React y Vite.
@@ -487,6 +489,29 @@ La web consulta el estado actual y envía nombre y correo a la API existente, qu
 Una respuesta validada confirma la inscripción; los duplicados se rechazan sin revelar perfiles previos.<br>
 La decisión de seguridad principal es mantener la autorización en el servidor y retirar los datos del asistente al cambiar de cuenta o perder acceso.<br>
 El flujo evita reenvíos automáticos ante resultados inciertos y fue validado con pruebas automatizadas y comprobación manual.
+
+### Consulta de inscripciones por API — OE-03-001C (Issue #39)
+
+Implementada y validada localmente en `feat/39-registration-query-api`; pendiente de PR, CI y merge.
+
+- `GET /api/v1/events/{eventId}/registrations`: devuelve `{ items, nextCursor }`, con `limit` 20 por defecto y máximo 100.
+- `GET /api/v1/events/{eventId}/registrations/{registrationId}`: devuelve una inscripción del evento indicado.
+- Ambas exigen token válido, scope `access_as_user`, rol global `organizer`, usuario local activo y asignación `organizer` al evento. `admin` y `checkin_operator` no heredan acceso.
+- Se consultan eventos draft, active, closed y cancelled; también se devuelven inscripciones canceladas con su estado y origen persistidos. Leer un evento cerrado no habilita nuevas inscripciones.
+- Cursor por UUID ascendente, vinculado al evento. No ordena por fecha ni conserva una instantánea entre páginas. Cada página vuelve a autorizarse.
+- Respuestas con `Cache-Control: no-store`, campos explícitos y errores controlados. No se crean usuarios ni se modifican inscripciones al consultar.
+
+Validación aportada por el mantenedor: **1.236 pruebas aprobadas** (502 API, 523 web y 211 PostgreSQL), typecheck, lint, build y diff sin errores. Comprobación de ocho casos mediante archivo temporal, eliminado después; Postman confirmó identidad organizer, dos páginas, fin de listado, rechazo de cursor inválido y detalle. No se probó manualmente una segunda cuenta real.
+
+No incluye pantalla web de listado, búsqueda por correo/nombre, CSV, QR, notificaciones ni idempotencia. No requiere migraciones nuevas. Consulta el [contrato](docs/architecture/api-contract.md) y [ADR-017](docs/adr/ADR-017-paginacion-de-inscripciones.md), [ADR-018](docs/adr/ADR-018-autorizacion-de-consultas-de-inscripciones.md) y [ADR-019](docs/adr/ADR-019-contrato-de-lectura-de-inscripciones.md).
+
+#### Resumen ejecutivo
+
+OpenEvents permite consultar las inscripciones de cada evento mediante una API protegida.<br>
+El organizador obtiene páginas acotadas y el detalle de una inscripción con datos persistidos en PostgreSQL.<br>
+Cada consulta valida la identidad, el rol y la asignación vigente al evento antes de devolver información.<br>
+La decisión de seguridad principal es vincular tanto la autorización como la búsqueda de la inscripción al evento solicitado.<br>
+La entrega incorpora pruebas automatizadas y verificaciones reales en consola y Postman; la pantalla web de consulta queda pendiente.
 
 ## Comandos
 
