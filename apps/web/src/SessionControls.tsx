@@ -16,6 +16,7 @@ import type { EditEventPayload } from "./api-event-edits";
 import { EventEditError } from "./event-edit-error";
 import { EventQueryError } from "./event-query-error";
 import type { RegistrationPayload } from "./api-registrations";
+import { RegistrationQueryError } from "./registration-query-error";
 import { RegistrationError } from "./registration-error";
 import type { CreateEventPayload } from "./event-form";
 
@@ -259,6 +260,46 @@ function AccountControls({
       throw error;
     }
   }
+  async function queryRegistrations(eventId: string, cursor: string | undefined, signal: AbortSignal) {
+    const checkCurrent = () => {
+      if (signal.aborted || !isCurrentAccount()) throw new RegistrationQueryError("cancelled");
+    };
+    checkCurrent();
+    if (!account || !canCreate || busy || operationLock.current) throw new RegistrationQueryError("unauthorized");
+    try {
+      let config;
+      try { config = parseAuthConfig(import.meta.env); } catch { throw new RegistrationQueryError("configuration"); }
+      const { listApiRegistrations } = await import("./api-registration-queries");
+      checkCurrent();
+      const result = await listApiRegistrations({ instance, account, apiScope: config.apiScope,
+        apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, cursor, signal });
+      checkCurrent();
+      return result;
+    } catch (error) {
+      checkCurrent();
+      throw error;
+    }
+  }
+  async function queryRegistrationDetail(eventId: string, registrationId: string, signal: AbortSignal) {
+    const checkCurrent = () => {
+      if (signal.aborted || !isCurrentAccount()) throw new RegistrationQueryError("cancelled");
+    };
+    checkCurrent();
+    if (!account || !canCreate || busy || operationLock.current) throw new RegistrationQueryError("unauthorized");
+    try {
+      let config;
+      try { config = parseAuthConfig(import.meta.env); } catch { throw new RegistrationQueryError("configuration"); }
+      const { getApiRegistration } = await import("./api-registration-queries");
+      checkCurrent();
+      const result = await getApiRegistration({ instance, account, apiScope: config.apiScope,
+        apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, registrationId, signal });
+      checkCurrent();
+      return result;
+    } catch (error) {
+      checkCurrent();
+      throw error;
+    }
+  }
   async function handleEdit(eventId: string, input: EditEventPayload, signal: AbortSignal) {
     if (signal.aborted) throw new EventEditError("cancelled");
     if (!account || !isCurrentAccount() || !canCreate || busy || operationLock.current) {
@@ -384,7 +425,7 @@ function AccountControls({
               {pending === "api" ? "Comprobando…" : "Comprobar acceso"}
             </button>
 
-            <p>Comprueba tus permisos para consultar, crear y editar eventos, y registrar asistentes.</p>
+            <p>Comprueba tus permisos para consultar, crear y editar eventos, y registrar o consultar asistentes.</p>
           </div>
         )}
 
@@ -423,6 +464,8 @@ function AccountControls({
             loadDetail={queryDetail}
             saveEvent={handleEdit}
             registerAttendee={handleRegistration}
+            loadRegistrations={queryRegistrations}
+            loadRegistrationDetail={queryRegistrationDetail}
             uncertainRegistrationIds={uncertainRegistrationIds.current}
             onRegistrationUncertain={id => uncertainRegistrationIds.current.add(id)}
             onEditingChange={setEditingOpen}

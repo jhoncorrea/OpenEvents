@@ -4,7 +4,15 @@ import type { EditEventPayload } from "./api-event-edits";
 import type { EditEventFormProps } from "./EditEventForm";
 import type { ApiRegistration, RegistrationPayload } from "./api-registrations";
 import type { RegisterAttendeeFormProps } from "./RegisterAttendeeForm";
+import type { RegistrationBrowserProps } from "./RegistrationBrowser";
 import "./my-events.css";
+
+const RegistrationBrowser = lazy(() => import("./RegistrationBrowser").catch(() => ({
+  default: function RegistrationBrowserLoadError({ onBack }: RegistrationBrowserProps) {
+    return <div role="alert"><p>No pudimos cargar las inscripciones. Vuelve al evento y recarga la página.</p>
+      <button type="button" onClick={onBack}>Volver al evento</button></div>;
+  },
+})));
 
 const RegisterAttendeeForm = lazy(() => import("./RegisterAttendeeForm").catch(() => ({
   default: function RegistrationLoadError({ onCancel }: RegisterAttendeeFormProps) {
@@ -27,6 +35,8 @@ interface Props {
   loadDetail: (id: string, signal: AbortSignal) => Promise<ApiEvent>;
   saveEvent: (id: string, input: EditEventPayload, signal: AbortSignal) => Promise<ApiEvent>;
   registerAttendee?: (id: string, input: RegistrationPayload, signal: AbortSignal) => Promise<ApiRegistration>;
+  loadRegistrations?: RegistrationBrowserProps["loadPage"];
+  loadRegistrationDetail?: RegistrationBrowserProps["loadDetail"];
   uncertainRegistrationIds?: ReadonlySet<string>;
   onRegistrationUncertain?: (id: string) => void;
   onEditingChange?: (editing: boolean) => void;
@@ -47,7 +57,7 @@ export default function MyEvents(props: Props) {
   return props.enabled ? <EventBrowser key={props.accountKey} {...props} /> : null;
 }
 
-function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAttendee, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
+function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
   const [items, setItems] = useState<ApiEvent[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -55,6 +65,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
   const [detail, setDetail] = useState<ApiEvent | null>(null);
   const [editing, setEditing] = useState<ApiEvent | null>(null);
   const [registering, setRegistering] = useState<ApiEvent | null>(null);
+  const [browsingRegistrations, setBrowsingRegistrations] = useState<ApiEvent | null>(null);
   const uncertainIds = useRef(new Set<string>());
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,7 +78,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
   const returnButton = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => () => { sequence.current++; active.current?.abort(); }, []);
-  useEffect(() => { if (selected && !editing && !registering) heading.current?.focus(); }, [selected, editing, registering]);
+  useEffect(() => { if (selected && !editing && !registering && !browsingRegistrations) heading.current?.focus(); }, [selected, editing, registering, browsingRegistrations]);
   useEffect(() => () => { onEditingChange?.(false); }, [onEditingChange]);
 
   function changeEditing(event: ApiEvent | null) {
@@ -93,7 +104,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
     const failure = cause instanceof EventQueryError ? cause : new EventQueryError("unavailable");
     if (failure.kind === "cancelled") return;
     if (["authentication", "interaction_required", "unauthorized", "forbidden"].includes(failure.kind)) {
-      setItems([]); setDetail(null); changeEditing(null); changeRegistering(null); setCursor(null); setBlocked(true);
+      setItems([]); setDetail(null); setBrowsingRegistrations(null); changeEditing(null); changeRegistering(null); setCursor(null); setBlocked(true);
       onAccessInvalidated();
     }
     setError(failure.message);
@@ -115,7 +126,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
     } catch (cause) { if (request.current()) failed(cause); }
     finally { if (request.current()) { active.current = null; setBusy(false); } }
   }
-  async function open(id: string, button?: HTMLButtonElement, mode: "view" | "edit" | "register" = "view") {
+  async function open(id: string, button?: HTMLButtonElement, mode: "view" | "edit" | "register" | "registrations" = "view") {
     if (active.current || blocked) return;
     if (button) returnButton.current = button;
     setSelected(id); setDetail(null);
@@ -125,6 +136,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
       if (request.current()) {
         setDetail(event);
         setItems(previous => previous.map(item => item.id === event.id ? event : item));
+        if (mode === "registrations") setBrowsingRegistrations(event);
         if (mode === "register" && !registrationBlocked(id)) {
           if (event.status === "draft" || event.status === "active") changeRegistering(event);
           else setNotice("El evento ya no admite inscripciones.");
@@ -143,14 +155,14 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
   }
   function back() {
     sequence.current++; active.current?.abort(); active.current = null;
-    setSelected(null); setDetail(null); changeEditing(null); changeRegistering(null); setBusy(false); setError(null); setNotice(null);
+    setSelected(null); setDetail(null); setBrowsingRegistrations(null); changeEditing(null); changeRegistering(null); setBusy(false); setError(null); setNotice(null);
     requestAnimationFrame(() => returnButton.current?.focus());
   }
 
   return <section className="my-events" aria-label="Mis eventos">
     <div className="my-events-header">
       <h2 ref={heading} tabIndex={-1}>{selected ? "Detalle del evento" : "Mis eventos"}</h2>
-      {!editing && !registering && (selected
+      {!editing && !registering && !browsingRegistrations && (selected
         ? <button type="button" onClick={back}>Volver al listado</button>
         : <button type="button" disabled={busy || blocked} onClick={() => void page()}>{loaded ? "Actualizar listado" : "Cargar eventos"}</button>)}
     </div>
@@ -176,7 +188,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
       </>}
       {cursor && <button type="button" disabled={busy} onClick={() => void page(true)}>Cargar más eventos</button>}
     </>}
-    {selected && detail && !blocked && !editing && !registering && <><dl className="my-events-detail">
+    {selected && detail && !blocked && !editing && !registering && !browsingRegistrations && <><dl className="my-events-detail">
       <dt>Nombre</dt><dd>{detail.name}</dd>
       <dt>Estado</dt><dd>{statusLabels[detail.status]}</dd>
       <dt>Ubicación</dt><dd>{detail.location}</dd>
@@ -186,11 +198,25 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
       <dt>Slug</dt><dd>{detail.slug}</dd>
       <dt>Identificador</dt><dd>{detail.id}</dd>
     </dl>
+      {loadRegistrations && loadRegistrationDetail && <button type="button" disabled={busy}
+        onClick={() => void open(detail.id, undefined, "registrations")}>Ver inscripciones</button>}
       {detail.status === "draft" && <button type="button" disabled={busy} onClick={() => void open(detail.id, undefined, "edit")}>Editar evento</button>}
       {registerAttendee && (detail.status === "draft" || detail.status === "active") && <button type="button"
         disabled={busy || registrationBlocked(detail.id)} onClick={() => void open(detail.id, undefined, "register")}>Registrar asistente</button>}
       {registrationBlocked(detail.id) && <p role="alert">Hay una inscripción con resultado pendiente de verificar. Podría haberse guardado. No vuelvas a enviarla; consulta con el organizador responsable antes de continuar.</p>}
     </>}
+    {browsingRegistrations && loadRegistrations && loadRegistrationDetail && !blocked && <Suspense fallback={<p role="status">Cargando inscripciones…</p>}>
+      <RegistrationBrowser accountKey={accountKey} enabled={!blocked} event={browsingRegistrations}
+        loadPage={loadRegistrations} loadDetail={loadRegistrationDetail}
+        onBack={() => { const id = browsingRegistrations.id; setBrowsingRegistrations(null); setDetail(null); void open(id); }}
+        onAccessInvalidated={() => failed(new EventQueryError("unauthorized"))}
+        onUnavailable={() => {
+          const id = browsingRegistrations.id; setBrowsingRegistrations(null); setDetail(null); setSelected(null);
+          setItems(previous => previous.filter(item => item.id !== id));
+          setNotice("El evento o la inscripción ya no están disponibles. Actualiza los eventos para comprobar el acceso.");
+        }}
+      />
+    </Suspense>}
     {registering && registerAttendee && !blocked && <Suspense fallback={<p role="status">Cargando inscripción…</p>}>
       <RegisterAttendeeForm accountKey={accountKey} enabled={!blocked} event={registering}
         onRegister={(input, signal) => registerAttendee(registering.id, input, signal)}

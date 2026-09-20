@@ -490,3 +490,12 @@ Se permite lectura en draft, active, closed y cancelled. `status` y `source` cor
 | 500 | INTERNAL_SERVER_ERROR | Fallo interno; respuesta y registro de error controlados. |
 
 Formato de error `{ code, message }`, sin SQL, tokens ni datos de asistentes. La consulta usa transacción y bloqueos SHARE en orden usuario, asignación, evento. Conserva esos controles durante la lectura; no reserva permisos para otra petición ni bloquea todas las inserciones de inscripciones. No introduce escrituras ni incrementos de versión, migraciones, búsqueda, interfaz web de consulta, reconciliación automática o idempotencia.
+
+
+### Consumidor web de consultas de inscripciones — OE-03-001D
+
+Issue #41 reutiliza los GET de OE-03-001C sin modificar rutas, permisos, códigos HTTP ni persistencia. El listado web solicita páginas de 20 y usa nextCursor como valor opaco. Actualizar vuelve a la primera página. El contador representa filas cargadas; no se incorpora un total ni búsqueda.
+
+El cliente diferencia el contrato de lectura (confirmed/cancelled y origen persistido) del contrato de alta (confirmed/manual). Valida el evento de todas las filas y el identificador del detalle solicitado, estructura y campos antes de mostrarlos. Rechaza páginas duplicadas/desordenadas, exceso de filas, cursores malformados o repetidos y continuación de una página incompleta. La pantalla detecta además ciclos entre páginas, conserva las filas anteriores ante fallos de red y exige reiniciar ante validación o respuesta inválida. No se decodifica el cursor en la web.
+
+Un 404 del detalle puede corresponder a inscripción ausente o evento inaccesible; la interfaz limpia el listado de ese evento de forma conservadora y permite volver a consultar los eventos. No se añade reconciliación de resultados inciertos ni se considera que leer una inscripción pruebe cuál solicitud de alta la creó.

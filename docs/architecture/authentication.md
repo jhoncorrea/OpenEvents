@@ -317,3 +317,16 @@ La discrepancia inicial de callback produjo AADSTS50011. Se registró el valor e
 Reutilizar el registro permite que Postman actúe como ese cliente de desarrollo; el claim azp no distingue la herramienta de la SPA. Para una herramienta permanente o compartida, evaluar un registro propio y ampliar explícitamente la lista de clientes permitidos con sus pruebas, permisos y flujo de usuario. No usar Client Credentials para simular los permisos de un organizador humano.
 
 Las comprobaciones automatizadas cubren actores ajenos, asignaciones retiradas, usuario deshabilitado y detalle bajo otro evento. No se realizó una prueba manual con segunda cuenta real ni una prueba de carga. Permanecen pendientes auditoría operativa, rate limiting y evaluación de rendimiento. La automatización de consola será la vía habitual para repetir smoke tests; Postman queda como apoyo exploratorio. Ninguna sustituye las pruebas de CI.
+
+
+## Consulta web de inscripciones — OE-03-001D (Issue #41)
+
+La opción Ver inscripciones requiere acceso organizer comprobado en la sesión y una nueva lectura del evento. Esa comprobación de interfaz no reemplaza la autorización por evento de cada GET. Se reutilizan el registro de cliente y scope existentes; no hay cambios de Entra ni secretos nuevos.
+
+SessionControls captura la cuenta seleccionada y comprueba identidad vigente/cancelación antes y después de importar el cliente y de consultar. RegistrationBrowser se desmonta mediante una clave de cuenta y evento; su secuencia de solicitudes y AbortController impiden aplicar respuestas tardías. Los datos personales se conservan solo en memoria, sin almacenamiento persistente ni registros en consola.
+
+401, 403 y errores de autenticación retiran consultas e invalidan el acceso comprobado. El 404 retira todos los datos consultados de ese evento y el evento de la lista local; no distingue si desapareció la inscripción o se perdió la asignación. Se permite actualizar los eventos para comprobar de nuevo. El detalle devuelto debe coincidir tanto en eventId como en registrationId antes de mostrarse.
+
+Las consultas usan GET, no-store, credentials omit y redirect error. Se valida la respuesta y se proyectan campos conocidos; se muestran textos mediante React, sin HTML del servidor. Los errores visibles no reproducen cuerpos internos. No-store no impide que un usuario autorizado copie datos. El aborto solo cancela la espera del cliente; la API mantiene su propia autorización.
+
+Las pruebas de sesión y componentes cubren cambios de cuenta, cierre de sesión, interacción MSAL, nueva comprobación de acceso y respuestas tardías. La evidencia manual disponible corresponde a una cuenta real. Siguen pendientes validación manual entre cuentas, auditoría operativa, rate limiting y carga. Leer el listado no desbloquea ni reconcilia automáticamente una inscripción de resultado incierto.
