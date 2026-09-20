@@ -217,3 +217,35 @@ describe("MyEvents editing integration", () => {
     expect(screen.queryByText("Old account response")).toBeNull(); expect(screen.getByText("Cargar eventos")).toBeTruthy();
   });
 });
+
+
+describe("MyEvents registration integration", () => {
+  function registrationProps() { return { ...setup(), registerAttendee: vi.fn(), onRegistrationUncertain: vi.fn() }; }
+  async function detail() { await load(); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Evento Lima" })); await screen.findByRole("button", { name: "Registrar asistente" }); }
+  it("reads fresh state before opening registration and hides other actions", async () => {
+    const props = registrationProps(); render(<MyEvents {...props} />); await detail();
+    props.loadDetail.mockResolvedValue({ ...event, name: "Actualizado", status: "active" });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar asistente" }));
+    await screen.findByLabelText("Nombre completo"); expect(props.loadDetail).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Actualizado")).toBeTruthy(); expect(props.onEditingChange).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByRole("button", { name: "Editar evento" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Volver al listado" })).toBeNull();
+  });
+  it.each(["closed", "cancelled"] as const)("does not open when fresh state is %s", async status => {
+    const props = registrationProps(); render(<MyEvents {...props} />); await detail();
+    props.loadDetail.mockResolvedValue({ ...event, status }); fireEvent.click(screen.getByRole("button", { name: "Registrar asistente" }));
+    await screen.findByText("El evento ya no admite inscripciones."); expect(screen.queryByLabelText("Nombre completo")).toBeNull();
+    expect(props.registerAttendee).not.toHaveBeenCalled();
+  });
+  it("removes an event whose fresh read is no longer authorized", async () => {
+    const props = registrationProps(); render(<MyEvents {...props} />); await detail();
+    props.loadDetail.mockRejectedValue(new EventQueryError("not_found")); fireEvent.click(screen.getByRole("button", { name: "Registrar asistente" }));
+    await screen.findByRole("alert"); fireEvent.click(screen.getByText("Volver al listado"));
+    expect(screen.queryByText("Evento Lima")).toBeNull(); expect(props.registerAttendee).not.toHaveBeenCalled();
+  });
+  it("honors the account's uncertain registration block", async () => {
+    const props = registrationProps(); render(<MyEvents {...props} uncertainRegistrationIds={new Set([event.id])} />); await detail();
+    expect((screen.getByRole("button", { name: "Registrar asistente" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/resultado pendiente de verificar/)).toBeTruthy();
+  });
+});

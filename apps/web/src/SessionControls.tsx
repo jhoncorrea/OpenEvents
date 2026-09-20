@@ -15,6 +15,8 @@ import { clearEventDraft } from "./event-draft";
 import type { EditEventPayload } from "./api-event-edits";
 import { EventEditError } from "./event-edit-error";
 import { EventQueryError } from "./event-query-error";
+import type { RegistrationPayload } from "./api-registrations";
+import { RegistrationError } from "./registration-error";
 import type { CreateEventPayload } from "./event-form";
 
 function FormLoadError() {
@@ -96,6 +98,8 @@ function AccountControls({
   const [formOpened, setFormOpened] = useState(false);
   const [editingOpen, setEditingOpen] = useState(false);
 
+  const uncertainRegistrationIds = useRef(new Set<string>());
+  const registrationInFlight = useRef(false);
   const operationLock = useRef(false);
 
   const busy =
@@ -273,6 +277,30 @@ function AccountControls({
       throw error;
     }
   }
+  async function handleRegistration(eventId: string, input: RegistrationPayload, signal: AbortSignal) {
+    if (signal.aborted) throw new RegistrationError("cancelled");
+    if (!account || !isCurrentAccount() || !canCreate || busy || operationLock.current) throw new RegistrationError("unauthorized");
+    if (registrationInFlight.current || uncertainRegistrationIds.current.has(eventId)) throw new RegistrationError("uncertain");
+    registrationInFlight.current = true;
+    let started = false;
+    try {
+      let config;
+      try { config = parseAuthConfig(import.meta.env); } catch { throw new RegistrationError("configuration"); }
+      const { registerApiAttendee } = await import("./api-registrations");
+      if (signal.aborted || !isCurrentAccount()) throw new RegistrationError("cancelled");
+      started = true;
+      const result = await registerApiAttendee({ instance, account, apiScope: config.apiScope,
+        apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, input, signal });
+      if (signal.aborted || !isCurrentAccount()) throw new RegistrationError("cancelled");
+      return result;
+    } catch (error) {
+      if (started && (signal.aborted || !(error instanceof RegistrationError) || ["uncertain", "cancelled"].includes(error.kind))) {
+        uncertainRegistrationIds.current.add(eventId);
+      }
+      if (signal.aborted || !isCurrentAccount()) throw new RegistrationError("cancelled");
+      throw error;
+    } finally { registrationInFlight.current = false; }
+  }
   async function handleCreate(input: CreateEventPayload) {
     if (
       !account ||
@@ -356,7 +384,7 @@ function AccountControls({
               {pending === "api" ? "Comprobando…" : "Comprobar acceso"}
             </button>
 
-            <p>Comprueba tus permisos para consultar, crear y editar eventos.</p>
+            <p>Comprueba tus permisos para consultar, crear y editar eventos, y registrar asistentes.</p>
           </div>
         )}
 
@@ -394,6 +422,9 @@ function AccountControls({
             loadPage={queryEvents}
             loadDetail={queryDetail}
             saveEvent={handleEdit}
+            registerAttendee={handleRegistration}
+            uncertainRegistrationIds={uncertainRegistrationIds.current}
+            onRegistrationUncertain={id => uncertainRegistrationIds.current.add(id)}
             onEditingChange={setEditingOpen}
             onAccessInvalidated={() => { if (isCurrentAccount()) invalidateAccess(); }}
           />

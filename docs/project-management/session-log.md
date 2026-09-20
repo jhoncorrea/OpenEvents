@@ -373,3 +373,34 @@ OE-02-002D se integró mediante PR #34, merge 9651330. El mantenedor confirmó C
 ### Decisiones y próximos pasos
 
 ADR-011: identidad y unicidad por evento. ADR-012: autorización y creación atómicas. ADR-013: contrato mínimo y errores sin datos personales. Pendientes revisión documental y diff, commit, PR, CI y merge. Después del merge se generará el informe con tres preguntas senior, respuestas ideales, dos ejemplos documentados por decisión y resumen visual. Nombre base: OpenEvents_OE-03-001A_Registro_asistentes_API_PR<número>.
+
+
+## 2026-09-20 — OE-03-001B: inscripción desde la web (Issue #37)
+
+### Punto de partida
+
+OE-03-001A quedó integrado mediante PR #36, merge 4d6d14c. El mantenedor confirmó CI aprobado en main, sincronizó el repositorio y eliminó la rama. Esta entrada actualiza los pendientes de integración de la sesión anterior. OE-03-001B se desarrolla en feat/37-attendee-registration-web y todavía no tiene PR ni merge declarados.
+
+### Resultado y evidencia
+
+- Cliente POST con validación de entradas y respuesta 201, token de la cuenta seleccionada, timeout y errores controlados sin reintento automático.
+- Formulario de nombre/correo desde el detalle, con lectura reciente del evento, estados draft/active, confirmación accesible y alta siguiente explícita.
+- Duplicado conserva datos corregibles. Resultado incierto bloquea reenvíos durante la cuenta montada; navegar o comprobar acceso no elimina ese bloqueo. Recarga/cambio de cuenta sí lo elimina; no hay idempotencia ni reconciliación por GET de inscripciones.
+- Datos personales solo en memoria; cancelación y descarte de respuestas tardías al salir o cambiar de cuenta. La autorización sigue en API.
+- Validación global aportada por el mantenedor: 397 API + 523 web + 171 PostgreSQL = 1.091 pruebas, typecheck, lint y build aprobados. Incluye 75 pruebas del cliente, 28 del formulario, 34 de MyEvents y 38 de SessionControls; estos grupos forman parte del total web, no se suman otra vez.
+- Capturas manuales: dos inscripciones confirmadas con IDs distintos; correo repetido rechazado aunque cambie el nombre. No se reproducen nombres ni correos de las capturas en la documentación.
+- git diff --check detectó retornos extra en cuatro archivos generados. Se normalizaron a UTF-8/LF sin cambios de lógica; el mantenedor confirmó diff limpio después de copiarlos nuevamente.
+
+### Threat modeling antes del cierre
+
+| Categoría | Escenario | Mitigación comprobada | Pendiente |
+|---|---|---|---|
+| Seguridad | Se cambia de cuenta durante un POST y llega información del asistente anterior, o se altera el UUID para inscribir en otro evento. | Estado por cuenta, cancelación y descarte de respuesta tardía; autorización por evento mantenida en API. Pruebas automáticas de sesión y API. | Prueba manual con dos cuentas reales y auditoría operativa. |
+| Concurrencia/carga | Doble clic o dos pestañas intentan inscribir el mismo correo. | Bloqueo de envío en formulario/sesión; UNIQUE por evento/correo y transacción existentes en API. | Rate limiting, métricas y pruebas de carga. El bloqueo local no coordina otras pestañas ni clientes. |
+| Experiencia | El servidor confirma pero la respuesta se pierde. | Sin reintento automático; aviso y bloqueo conservado al navegar o comprobar acceso. Cobertura automática, no ensayo manual de corte de red. | Consulta autorizada para reconciliar e idempotencia si se habilitan reintentos. Recargar elimina el bloqueo local; no prueba que el envío falló. |
+
+### Decisiones y próximos pasos
+
+ADR-014: resultados inciertos sin reenvío automático. ADR-015: aislamiento por cuenta y datos solo en memoria. ADR-016: confirmación validada y contrato mínimo. No se modifican API, migraciones ni infraestructura. Consulta/listado de inscripciones, CSV, QR y notificaciones quedan fuera de esta entrega; no se cierra la historia principal RF-ATT-001 por completar el formulario.
+
+Pendientes revisión documental, commit, PR, CI y merge. Después del merge: PDF con tres preguntas senior y respuestas ideales, escenarios, párrafo ejecutivo, dos ejemplos documentados por decisión y resumen visual. Nombre base: OpenEvents_OE-03-001B_Registro_asistentes_web_PR<número>.

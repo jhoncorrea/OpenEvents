@@ -12,6 +12,8 @@ Desarrollo incremental del MVP. La interfaz web y las rutas de demostración man
 
 `POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; la API permite listar y consultar los eventos asignados. La web permite listar y consultar esos eventos. La API permite editar borradores con control de versión; la web incorpora el formulario y la recuperación explícita de conflictos.
 
+La web también permite registrar asistentes en eventos asignados en estado `draft` o `active`, con confirmación, rechazo de duplicados y bloqueo de reenvíos de resultado incierto. La autorización definitiva permanece en la API.
+
 ## Arquitectura inicial
 
 - `apps/web`: aplicación web mobile-first con React y Vite.
@@ -452,7 +454,7 @@ Aplica `pnpm --filter @openevents/api db:migrate` antes de iniciar la API actual
 
 Una transacción crea asistente e inscripción; un conflicto devuelve 409 y revierte el perfil recién insertado. Bloqueos compartidos sobre usuario, asignación y evento coordinan cambios concurrentes de permisos o estado. No hay idempotencia de respuesta: si se pierde una respuesta, un reenvío puede devolver 409 aunque el primer envío haya tenido éxito.
 
-Validación global aportada por el mantenedor: **977 pruebas aprobadas** (397 API, 409 web y 171 PostgreSQL), tipos, lint y build; diff sin errores de espacios, con avisos CRLF/LF. Prueba manual: siete comprobaciones correctas y una consulta SQL con una sola inscripción confirmed/manual y correo normalizado. Comprobador temporal eliminado. Pendientes revisión documental, commit, PR, CI y merge.
+Validación global aportada por el mantenedor: **977 pruebas aprobadas** (397 API, 409 web y 171 PostgreSQL), tipos, lint y build; diff sin errores de espacios, con avisos CRLF/LF. Prueba manual: siete comprobaciones correctas y una consulta SQL con una sola inscripción confirmed/manual y correo normalizado. Comprobador temporal eliminado. Integrada mediante PR #36, merge `4d6d14c`; CI de main aprobado según el mantenedor. Main sincronizado y rama eliminada.
 
 Esta entrega no incorpora formulario web, listado de inscripciones, importación CSV, QR ni envío de correos. RF-ATT-001 y la historia OE-03-001 requieren contrastar el recorrido completo antes de cerrarse. Véanse el [contrato](docs/architecture/api-contract.md) y los ADR [011](docs/adr/ADR-011-identidad-y-unicidad-de-inscripciones.md), [012](docs/adr/ADR-012-inscripcion-atomica-y-autorizada.md) y [013](docs/adr/ADR-013-contrato-minimo-de-inscripcion.md).
 
@@ -463,6 +465,28 @@ La operación crea el perfil y su inscripción en una transacción de PostgreSQL
 Una restricción por evento y correo normalizado impide duplicados incluso ante solicitudes simultáneas.<br>
 La decisión principal de seguridad es verificar permisos dentro de la transacción y no reutilizar perfiles de otros eventos por correo.<br>
 La entrega se validó con pruebas automatizadas, una sesión real y una consulta directa de persistencia.
+
+### Registro de asistentes desde la web — OE-03-001B
+
+Issue #37, rama `feat/37-attendee-registration-web`. Tras comprobar acceso como organizer, abre «Mis eventos», consulta el detalle y pulsa «Registrar asistente». Antes de abrir el formulario se vuelve a consultar el evento; solo se ofrece para draft/active. Cada POST sigue sujeto a autorización y estado en el servidor.
+
+El formulario solicita nombre completo y correo, normaliza los valores y valida antes de enviar. Una respuesta 201 validada muestra nombre, correo, identificador de inscripción, estado confirmed y origen manual. «Registrar otro asistente» abre un formulario vacío mediante acción explícita. Un correo duplicado presenta un aviso y conserva los campos para corregirlos, sin mostrar otra confirmación ni recuperar el perfil existente.
+
+Los datos del asistente permanecen en memoria, sin guardarse en localStorage/sessionStorage. Cambiar de cuenta, cerrar sesión o perder acceso retira los datos; se cancelan solicitudes y se ignoran respuestas tardías. Mientras está abierto se oculta la creación de eventos y se deshabilita Comprobar acceso. Cancelar con datos solicita confirmación. Cerrar sesión sigue disponible.
+
+No hay reintentos automáticos. Un resultado incierto bloquea el reenvío; el bloqueo por evento se conserva en memoria para la cuenta montada incluso al volver al listado o comprobar acceso. Recargar la página o cambiar de cuenta elimina ese estado: no es una garantía de idempotencia. Abortar la espera no revierte una inscripción confirmada en el servidor. Todavía no existe consulta/listado de inscripciones para reconciliar el resultado desde esta pantalla.
+
+Validación del mantenedor: **1.091 pruebas aprobadas** (397 API, 523 web y 171 PostgreSQL), typecheck, lint y build. `git diff --check` limpio tras normalizar los saltos de línea. Prueba manual: dos confirmaciones con identificadores distintos y rechazo de un correo repetido en el mismo evento aunque cambie el nombre. No se declara prueba manual entre cuentas ni de pérdida de respuesta; esos comportamientos tienen cobertura automatizada. Sin endpoints, migraciones, QR ni correos nuevos. Pendientes revisión documental, commit, PR, CI y merge.
+
+Decisiones: [ADR-014](docs/adr/ADR-014-resultados-inciertos-de-inscripcion-web.md), [ADR-015](docs/adr/ADR-015-aislamiento-de-inscripcion-por-cuenta.md) y [ADR-016](docs/adr/ADR-016-confirmacion-validada-de-inscripcion.md). El formulario avanza OE-03-001; no completa la consulta/listado requerida para contrastar todo RF-ATT-001.
+
+#### Resumen ejecutivo
+
+OpenEvents permite a los organizadores registrar asistentes desde el detalle de sus eventos.<br>
+La web consulta el estado actual y envía nombre y correo a la API existente, que aplica los permisos por evento.<br>
+Una respuesta validada confirma la inscripción; los duplicados se rechazan sin revelar perfiles previos.<br>
+La decisión de seguridad principal es mantener la autorización en el servidor y retirar los datos del asistente al cambiar de cuenta o perder acceso.<br>
+El flujo evita reenvíos automáticos ante resultados inciertos y fue validado con pruebas automatizadas y comprobación manual.
 
 ## Comandos
 

@@ -142,13 +142,14 @@ OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperab
 | OE-02-002C | PATCH de borradores con permisos por evento y control de versión. | Issue #31 integrado mediante PR #32, merge `5a1aa30`. CI aprobado antes y después del merge según el mantenedor; main sincronizado y rama eliminada. |
 | OE-02-002D | Edición desde la web y resolución de conflictos de versión. | Issue #33 integrado mediante PR #34, merge `9651330`. CI aprobado antes y después del merge según el mantenedor. Main sincronizado y rama local eliminada. |
 
-A utiliza las asignaciones de OE-01-002B y añade recuperación mediante API. B incorpora la pantalla de consulta. C añade edición API solo de borradores y D incorpora la interfaz de edición, pendiente de merge. No se añaden estimaciones independientes.
+A utiliza las asignaciones de OE-01-002B y añade recuperación mediante API. B incorpora la pantalla de consulta. C añade edición API solo de borradores y D incorpora la interfaz de edición integrada mediante PR #34. No se añaden estimaciones independientes.
 
 
 ## Desglose de OE-03-001 — Registro manual
 
 | Parte | Alcance | Seguimiento |
 |---|---|---|
-| OE-03-001A | API de inscripción autorizada por evento, deduplicación y persistencia atómica. | Issue #35, rama feat/35-attendee-registration-api. 977 pruebas globales, tipos, lint y build aprobados. Siete comprobaciones manuales y persistencia SQL confirmadas. Pendientes revisión documental, commit, PR, CI y merge. |
+| OE-03-001A | API de inscripción autorizada por evento, deduplicación y persistencia atómica. | Issue #35 integrado mediante PR #36, merge `4d6d14c`. CI aprobado según el mantenedor; main sincronizado y rama eliminada. Validación previa: 977 pruebas. |
+| OE-03-001B | Formulario web de inscripción, confirmación validada, duplicados y aislamiento por cuenta. | Issue #37, rama `feat/37-attendee-registration-web`. 1.091 pruebas globales, tipos, lint, build y diff aprobados. Dos altas y rechazo de duplicado comprobados manualmente. Pendientes revisión documental, commit, PR, CI y merge. |
 
-La historia principal mantiene su estimación original. Esta entrega API no completa el recorrido web ni todo RF-ATT-001: queda planificar formulario y consulta/listado, contrastando los requisitos. No incluye CSV, QR, check-in persistido ni notificaciones. Depende del esquema y de la autorización por evento incorporada en entregas anteriores.
+La historia principal mantiene su estimación original. A incorpora la API y B el formulario web. La consulta/listado de inscripciones sigue pendiente de planificación; no se declara completa la historia principal ni todo RF-ATT-001. No incluye CSV, QR, check-in persistido ni notificaciones. Depende del esquema y de la autorización por evento incorporada en entregas anteriores.
