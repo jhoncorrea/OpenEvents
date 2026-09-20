@@ -277,3 +277,13 @@ El cliente obtiene el token para la cuenta seleccionada y comprueba que sigue si
 Los datos del editor no se escriben en almacenamiento del navegador. El borrador de creación mantiene su mecanismo independiente por cuenta. Mientras se edita se oculta y deshabilita la creación, y se deshabilita Comprobar acceso para evitar descartar la edición por esa acción. Cerrar sesión sigue disponible; cancelar la espera no implica deshacer un PATCH enviado.
 
 Pruebas web con MSAL/API simulados verifican cuenta, scope, cancelación, respuestas tardías y recuperación de acceso. La comprobación manual utilizó una cuenta real en dos pestañas; no constituye una prueba manual de aislamiento entre dos identidades. Auditoría completa, rate limiting y pruebas de carga siguen pendientes.
+
+## Inscripción autorizada — OE-03-001A
+
+Issue #35 utiliza el guard de access token y rol organizer. La identidad local se deriva de tenantId y objectId verificados, normalizados; nunca de campos del cuerpo. Admin y checkin_operator no heredan organizer. Un usuario desconocido no se crea durante la inscripción.
+
+En la transacción se bloquean con FOR SHARE, en orden, usuario, asignación event_staff y evento. Se verifica usuario activo, rol organizer de la asignación y estado draft/active. Una revocación o cierre confirmado antes de obtener el bloqueo impide la operación; una inscripción que ya mantiene los bloqueos puede terminar antes del cambio incompatible. No existe revocación retroactiva. Las futuras operaciones de administración deben coordinar este orden y tratar esperas/deadlocks.
+
+El correo no es una identidad global ni prueba de propiedad. No se consultan ni reutilizan perfiles de otros eventos. Solo un organizador autorizado puede recibir el conflicto por correo de su evento. Respuestas ajenas/inexistentes comparten 404. Los errores del parser y de persistencia se reducen a mensajes controlados; el log de error de inscripción registra un código genérico, no el cuerpo ni el error SQL.
+
+Las pruebas incluyen duplicados concurrentes y operaciones esperando un cierre, una deshabilitación o una eliminación de asignación. La prueba manual utilizó una identidad real y un evento ficticio propio; aislamiento entre organizadores se verificó automáticamente, no con dos cuentas reales. Rate limiting, auditoría operativa, pruebas de carga y recuperación de resultados inciertos siguen pendientes.

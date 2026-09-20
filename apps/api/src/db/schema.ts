@@ -135,6 +135,9 @@ export const registrations = pgTable(
       .notNull()
       .references(() => attendees.id, { onDelete: "restrict" }),
 
+    // Clave de duplicados del evento; no es una identidad global ni correo verificado.
+    emailNormalized: text("email_normalized").notNull(),
+
     status: registrationStatus("status")
       .notNull()
       .default("confirmed"),
@@ -146,6 +149,8 @@ export const registrations = pgTable(
       .defaultNow(),
   },
   (table) => [
+    unique("registration_event_email_unique").on(table.eventId, table.emailNormalized),
+    check("registration_email_normalized_check", sql`${table.emailNormalized} = lower(${table.emailNormalized} COLLATE "C") AND ${table.emailNormalized} ~ '^[!-~]+@[!-~]+$' AND length(${table.emailNormalized}) <= 254`),
     unique("registration_event_attendee_unique").on(
       table.eventId,
       table.attendeeId,

@@ -1,3 +1,4 @@
+import { registerAttendeeForOrganizer } from "./modules/registrations/register-attendee-for-organizer.js";
 import { editEventForOrganizer } from "./modules/events/edit-event-for-organizer.js";
 import { listEventsForOrganizer, getEventForOrganizer } from "./modules/events/query-events-for-organizer.js";
 import { buildApp } from "./app.js";
@@ -21,13 +22,14 @@ const database = createDatabaseConnection({
   onIdleError: () => {
     app.log.error(
       { code: "DATABASE_IDLE_CONNECTION_ERROR" },
-      "Se perdió una conexión inactiva con PostgreSQL.",
+      "Se perdiÃ³ una conexiÃ³n inactiva con PostgreSQL.",
     );
   },
 });
 
 const app = buildApp({
   logger: true,
+  registerAttendee: (id, input, actor) => registerAttendeeForOrganizer(database.db, id, input, actor),
   editEvent: (id, input, actor) => editEventForOrganizer(database.db, id, input, actor),
   eventQueries: {
     list: (input, actor) => listEventsForOrganizer(database.db, input, actor),
