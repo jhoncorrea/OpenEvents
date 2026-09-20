@@ -2,8 +2,9 @@
 
 Este documento describe la API objetivo del MVP. No todas las rutas ni convenciones aquí propuestas están implementadas.
 
-## Estado implementado — OE-01-002A/B, OE-02-001B/C, OE-02-002A/B/C/D y OE-03-001A
+## Estado implementado — OE-01-002A/B, OE-02-001B/C, OE-02-002A/B/C/D y OE-03-001A/B/C
 
+- Los dos GET de inscripciones están implementados en OE-03-001C, solo para organizer autorizado por evento; contrato detallado al final.
 - `POST /api/v1/events/{eventId}/registrations` registra un asistente con autorización por evento; contrato detallado al final.
 - `GET /health` es público.
 - `GET /api/v1/auth/me` requiere un access token válido para la API, la aplicación cliente permitida y el scope `access_as_user`. Devuelve la identidad y los roles reconocidos; no exige un rol específico.
@@ -256,14 +257,14 @@ No requiere autenticación y no expone secretos.
 
 ## 4. Asistentes e inscripciones
 
-Solo el POST de creación está implementado en OE-03-001A. Importación, consultas y emisión de QR de esta tabla siguen siendo objetivos.
+El POST está implementado en OE-03-001A y los GET en OE-03-001C. Los GET actuales solo admiten organizer global y asignado al evento; búsqueda y acceso de operadores siguen pendientes. Importación y emisión de QR son objetivos futuros.
 
 | Método | Ruta | Rol mínimo | Propósito |
 |---|---|---|---|
 | POST | `/api/v1/events/{eventId}/registrations` | Organizer | Crear inscripción |
 | POST | `/api/v1/events/{eventId}/registrations/imports` | Organizer | Importar CSV |
-| GET | `/api/v1/events/{eventId}/registrations` | Operator | Buscar/listar |
-| GET | `/api/v1/events/{eventId}/registrations/{id}` | Operator | Consultar inscripción |
+| GET | `/api/v1/events/{eventId}/registrations` | Organizer asignado | Listar con cursor (implementado) |
+| GET | `/api/v1/events/{eventId}/registrations/{registrationId}` | Organizer asignado | Consultar inscripción (implementado) |
 | POST | `/api/v1/events/{eventId}/registrations/{id}/qr` | Organizer | Emitir/reemitir QR |
 
 ## 5. Check-in
@@ -430,3 +431,62 @@ Solo se acepta 201 con UUID válidos, eventId correspondiente, estado confirmed,
 400/413/415 permiten corregir datos; 401/403 y fallos de autenticación invalidan el acceso. 404 retira el evento disponible. Los 409 conocidos distinguen correo duplicado de estado no permitido; un 409 desconocido, fallo de red, timeout, respuesta ilegible o error inesperado no se interpreta como éxito. Se muestran mensajes controlados sin cuerpo remoto ni detalles internos.
 
 El formulario bloquea envíos simultáneos y resultados inciertos. El bloqueo por evento vive en memoria durante la cuenta montada y sobrevive a una nueva comprobación de acceso, pero no a recarga o cambio de cuenta. No sustituye la unicidad del servidor ni recupera una respuesta perdida. GET del evento verifica acceso/estado, no la existencia de una inscripción; no hay endpoint nuevo de reconciliación.
+
+
+## Consultas implementadas — OE-03-001C (Issue #39)
+
+Autenticación y rol global `organizer` antes de validar ruta/query. Se exige usuario local activo y asignación `organizer` al evento. Las dos rutas responden con `Cache-Control: no-store`. `admin` y `checkin_operator` no heredan permisos. No se aprovisionan actores al leer.
+
+### Listado
+
+`GET /api/v1/events/{eventId}/registrations?limit=20&cursor=<cursor>`
+
+- `eventId`: UUID; se normaliza a minúsculas.
+- `limit`: opcional, entero decimal positivo de 1 a 100, sin ceros iniciales; predeterminado 20.
+- `cursor`: opcional, cadena base64url canónica de hasta 150 caracteres, emitida para ese evento. Se rechazan otras propiedades, parámetros repetidos, límites fuera de rango y cursores inválidos o de otro evento.
+- Solo se omite `cursor` en la primera página; no se envía la cadena literal `null`.
+
+Respuesta `200` (valores ilustrativos):
+
+```json
+{
+  "items": [{
+    "id": "11111111-1111-4111-8111-111111111111",
+    "eventId": "22222222-2222-4222-8222-222222222222",
+    "status": "confirmed",
+    "source": "manual",
+    "createdAt": "2026-09-20T15:00:00.000Z",
+    "attendee": {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "fullName": "Asistente de ejemplo",
+      "email": "asistente@example.com"
+    }
+  }],
+  "nextCursor": null
+}
+```
+
+Se ordena por `registration.id ASC`, filtra por evento y posición `id > afterId`, y solicita `limit + 1` filas para detectar si existe una página siguiente. Si existe, `nextCursor` contiene una cadena que el cliente debe devolver sin interpretarla; en otro caso es `null`, incluso si la última página contiene exactamente `limit` filas. Un evento autorizado sin inscripciones devuelve `{ "items": [], "nextCursor": null }`.
+
+El formato interno versionado es `reg:v1:<eventId>:<registrationId>` codificado en base64url. No está cifrado ni firmado y no es una credencial: se autoriza cada solicitud independientemente. No exige que la fila de posición todavía exista. Los UUID no establecen orden cronológico; las inserciones concurrentes pueden quedar antes de una posición ya recorrida. No hay instantánea entre páginas ni garantía de incluir todas las altas concurrentes.
+
+### Detalle
+
+`GET /api/v1/events/{eventId}/registrations/{registrationId}`
+
+Ambos identificadores deben ser UUID. No admite query adicional. Devuelve `200` con el objeto de inscripción mostrado dentro de `items`, directamente, sin contenedor ni cursor. La búsqueda combina evento e inscripción: un ID perteneciente a otro evento devuelve el mismo error que uno inexistente, incluso si el organizador tiene acceso a ambos eventos.
+
+### Estados, privacidad y errores
+
+Se permite lectura en draft, active, closed y cancelled. `status` y `source` corresponden a lo persistido; no se fuerza confirmed/manual. Se incluyen inscripciones canceladas. Se exponen únicamente `id`, `eventId`, `status`, `source`, `createdAt` UTC y `attendee.{id,fullName,email}`; no se expone `emailNormalized` ni información de otros eventos.
+
+| HTTP | Código | Situación |
+|---|---|---|
+| 400 | INVALID_REGISTRATION_QUERY | UUID, límite, cursor o query inválidos. |
+| 401 | UNAUTHORIZED | Token ausente, inválido o identidad mal formada. Incluye WWW-Authenticate: Bearer. |
+| 403 | FORBIDDEN | Cliente/scope/rol insuficiente o usuario local deshabilitado. |
+| 404 | EVENT_NOT_FOUND | Evento inexistente o ajeno, actor local desconocido o asignación ausente/no organizer; mismo cuerpo. |
+| 404 | REGISTRATION_NOT_FOUND | Evento autorizado, pero inscripción inexistente o de otro evento. |
+| 500 | INTERNAL_SERVER_ERROR | Fallo interno; respuesta y registro de error controlados. |
+
+Formato de error `{ code, message }`, sin SQL, tokens ni datos de asistentes. La consulta usa transacción y bloqueos SHARE en orden usuario, asignación, evento. Conserva esos controles durante la lectura; no reserva permisos para otra petición ni bloquea todas las inserciones de inscripciones. No introduce escrituras ni incrementos de versión, migraciones, búsqueda, interfaz web de consulta, reconciliación automática o idempotencia.

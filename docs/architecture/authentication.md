@@ -298,3 +298,22 @@ El envío usa la cuenta seleccionada y el scope configurado. Se comprueba la cue
 El formulario no muestra perfiles asociados a un correo duplicado. 401/403 invalidan el acceso comprobado y 404 retira el evento. Durante la inscripción se oculta la creación y se deshabilita Comprobar acceso, manteniendo disponible cerrar sesión. Abortar no deshace una escritura ya aceptada.
 
 Las pruebas automatizadas de web simulan API/MSAL y verifican selección de cuenta, scope, cancelación y respuestas tardías. La comprobación manual mostró altas y duplicado con una cuenta real; no acredita aislamiento manual entre dos cuentas. El bloqueo de resultados inciertos es local y temporal; quedan pendientes reconciliación autorizada, auditoría, rate limiting y pruebas de carga.
+
+
+## Consulta de inscripciones — OE-03-001C (Issue #39)
+
+Los GET de listado y detalle exigen la validación de token existente (incluidos `azp`, `scp=access_as_user` y tenant), rol global organizer, usuario local activo y asignación organizer al evento. La identidad persistida utiliza `entra:<tid>:<oid>` normalizado; no depende del correo ni del claim sub para asociar el usuario local. Las consultas no crean usuarios ni reactivan cuentas.
+
+La transacción toma SHARE sobre usuario, asignación y evento, en ese orden, antes de consultar las inscripciones. El detalle filtra por `eventId` y `registrationId` simultáneamente. Los eventos ajenos e inexistentes comparten 404, y una inscripción de otro evento se oculta aunque el actor tenga acceso a ambos. El cursor solo representa una posición vinculada al evento; no es firmado, secreto ni prueba de autorización. Cada página vuelve a comprobar permisos.
+
+La lectura permite todos los estados del evento y devuelve el estado/origen persistidos de la inscripción. La respuesta incluye datos personales necesarios del asistente, por lo que usa no-store y una proyección explícita. No se envían tokens ni detalles internos en errores. No hay búsqueda por correo/nombre ni acceso de operadores en esta entrega.
+
+### Práctica local en Postman
+
+Se comprobó Authorization Code con PKCE (SHA-256), inicio de sesión en navegador y sin secreto de cliente. Para esta práctica se reutilizó el registro web de Development que la API ya permite mediante `azp`. Se añadieron callbacks de Postman bajo Mobile and desktop applications: `https://oauth.pstmn.io/v1/browser-callback` y `https://oauth.pstmn.io/v1/callback`; la versión utilizada envió el segundo. La URI SPA existente se conservó. Estos cambios de portal no están gestionados por este commit ni por IaC.
+
+La discrepancia inicial de callback produjo AADSTS50011. Se registró el valor exacto enviado; después se permitió la ventana emergente del callback para volver a Postman. La colección usó OAuth heredado y access token para GET /api/v1/auth/me y las consultas de inscripciones. Se verificó 200 con organizer, dos páginas, fin del listado, rechazo 400 de cursor inválido y detalle 200. No se guardan tokens ni códigos de autorización en este documento.
+
+Reutilizar el registro permite que Postman actúe como ese cliente de desarrollo; el claim azp no distingue la herramienta de la SPA. Para una herramienta permanente o compartida, evaluar un registro propio y ampliar explícitamente la lista de clientes permitidos con sus pruebas, permisos y flujo de usuario. No usar Client Credentials para simular los permisos de un organizador humano.
+
+Las comprobaciones automatizadas cubren actores ajenos, asignaciones retiradas, usuario deshabilitado y detalle bajo otro evento. No se realizó una prueba manual con segunda cuenta real ni una prueba de carga. Permanecen pendientes auditoría operativa, rate limiting y evaluación de rendimiento. La automatización de consola será la vía habitual para repetir smoke tests; Postman queda como apoyo exploratorio. Ninguna sustituye las pruebas de CI.

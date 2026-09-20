@@ -1,3 +1,4 @@
+import { registerRegistrationQueryRoutes, type RegistrationQueryOperations } from "./modules/registrations/registration-query-routes.js";
 import { registerAttendeeRoutes, type RegisterAttendeeOperation } from "./modules/registrations/registration-routes.js";
 import cors from "@fastify/cors";
 import Fastify from "fastify";
@@ -21,6 +22,7 @@ interface BuildAppOptions {
   verifyAccessToken: AccessTokenVerifier;
   createEvent: CreateEventOperation;
   eventQueries?: EventQueryOperations;
+  registrationQueries?: RegistrationQueryOperations;
   editEvent?: EditEventOperation;
   registerAttendee?: RegisterAttendeeOperation;
 }
@@ -30,6 +32,7 @@ export function buildApp({
   verifyAccessToken,
   createEvent,
   eventQueries,
+  registrationQueries,
   editEvent,
   registerAttendee,
 }: BuildAppOptions) {
@@ -68,6 +71,8 @@ export function buildApp({
     verifyAccessToken,
     createEvent,
   });
+
+  if (registrationQueries) registerRegistrationQueryRoutes(app, verifyAccessToken, registrationQueries);
 
   if (registerAttendee) registerAttendeeRoutes(app, verifyAccessToken, registerAttendee);
 

@@ -404,3 +404,35 @@ OE-03-001A quedó integrado mediante PR #36, merge 4d6d14c. El mantenedor confir
 ADR-014: resultados inciertos sin reenvío automático. ADR-015: aislamiento por cuenta y datos solo en memoria. ADR-016: confirmación validada y contrato mínimo. No se modifican API, migraciones ni infraestructura. Consulta/listado de inscripciones, CSV, QR y notificaciones quedan fuera de esta entrega; no se cierra la historia principal RF-ATT-001 por completar el formulario.
 
 Pendientes revisión documental, commit, PR, CI y merge. Después del merge: PDF con tres preguntas senior y respuestas ideales, escenarios, párrafo ejecutivo, dos ejemplos documentados por decisión y resumen visual. Nombre base: OpenEvents_OE-03-001B_Registro_asistentes_web_PR<número>.
+
+
+## 2026-09-20 — OE-03-001C: consultas de inscripciones por API (Issue #39)
+
+### Punto de partida y evidencia
+
+OE-03-001B quedó integrado mediante PR #38, merge 6fdd8b0. El mantenedor confirmó CI verde, sincronizó main y eliminó la rama local. Issue #39 se desarrolla en feat/39-registration-query-api; todavía no se declara commit, PR ni merge de esta entrega.
+
+- GET de listado y detalle con autorización por evento, sin aprovisionamiento ni escrituras. Lectura en todos los estados, incluidos eventos e inscripciones cancelados.
+- Paginación por UUID ascendente, límite 20/100, cursor canónico vinculado al evento y consulta limit + 1. No hay orden cronológico ni instantánea entre páginas.
+- Proyección explícita de inscripción/asistente, fechas UTC, no-store y errores controlados. Filtro conjunto de inscripción y evento contra acceso cruzado.
+- Resultados enviados por el mantenedor: 502 API + 523 web + 211 PostgreSQL = **1.236 pruebas aprobadas**. Typecheck, lint, build y git diff --check aprobados. Se eliminó apps/web/src/issue39-smoke.ts antes de la suite global.
+- Nuevas pruebas: 55 de entrada, 50 de rutas, 22 de servicio PostgreSQL y 18 HTTP con PostgreSQL. Son parte de los totales anteriores.
+- Smoke manual con cuenta real: listado sin token 401, primera página 200, detalle 200, segunda página 200, cursor de otro evento 400, límite inválido 400, evento inexistente 404 e inscripción inexistente 404. Solo lecturas; no imprime tokens ni datos del asistente. No se probó otra cuenta real.
+- Práctica adicional Postman: OAuth con PKCE, callback correcto tras AADSTS50011 y desbloqueo de ventana emergente. Identidad organizer 200, dos inscripciones diferentes en dos páginas, nextCursor null al final, cursor literal inválido 400 y detalle 200. No se incorporan capturas con credenciales ni datos personales al repositorio.
+- La configuración manual de Entra reutilizó el registro web de Development con callbacks de escritorio; se documenta el alcance en authentication.md. No se alteró el verificador ni se añadieron secretos.
+
+### Threat modeling antes del cierre
+
+| Categoría | Escenario | Mitigación implementada y evidencia | Pendiente |
+|---|---|---|---|
+| Seguridad | Un organizer cambia evento o inscripción para leer asistentes ajenos. | Rol global, usuario activo, asignación por evento y filtro conjunto; 404 homogéneos. Pruebas automáticas de actores y eventos cruzados. | Prueba manual con dos identidades reales y auditoría de acceso. |
+| Concurrencia/carga | Altas durante la paginación o muchas lecturas mantienen bloqueos. | Páginas acotadas, UUID estable, limit + 1 y transacciones breves con SHARE. Pruebas funcionales de paginación; no se declara ensayo concurrente específico de estas lecturas. | Medir consultas/índices, esperas y carga; rate limiting. No hay snapshot: altas anteriores al cursor pueden quedar fuera del recorrido. |
+| Experiencia | El cliente reutiliza un cursor de otro evento o interpreta el fin del listado como error. | Cursor vinculado al evento, 400 controlado, página vacía válida y nextCursor null al final; smoke y Postman. | Pantalla web de listado con reinicio de cursor por evento y mensajes accesibles. Reconciliación de altas inciertas aún no integrada. |
+
+### Decisiones y siguientes pasos
+
+ADR-017: paginación por posición vinculada al evento. ADR-018: autorización transaccional y filtro de pertenencia. ADR-019: contrato mínimo de lectura y estados históricos. No hay migraciones, búsqueda, CSV, QR, notificaciones ni UI nueva. La historia principal OE-03-001 y todo RF-ATT-001 no se declaran completos; queda la consulta web.
+
+Preferencia acordada: usar el archivo temporal de prueba para comprobaciones repetibles y Postman para explorar/aprender. Retirar el archivo antes de commit. Las suites automatizadas siguen siendo la validación de regresión.
+
+Pendientes revisión documental, commit, PR, CI y merge. Después del merge: PDF con tres preguntas senior y respuestas, amenazas, resumen ejecutivo, dos ejemplos documentados por decisión y resumen visual. Nombre base: OpenEvents_OE-03-001C_Consulta_inscripciones_API_PR<número>. Las tres infografías educativas de Postman son material de práctica, no evidencia de cierre del PR.

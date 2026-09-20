@@ -1,3 +1,4 @@
+import { listRegistrationsForOrganizer, getRegistrationForOrganizer } from "./modules/registrations/query-registrations-for-organizer.js";
 import { registerAttendeeForOrganizer } from "./modules/registrations/register-attendee-for-organizer.js";
 import { editEventForOrganizer } from "./modules/events/edit-event-for-organizer.js";
 import { listEventsForOrganizer, getEventForOrganizer } from "./modules/events/query-events-for-organizer.js";
@@ -31,6 +32,10 @@ const app = buildApp({
   logger: true,
   registerAttendee: (id, input, actor) => registerAttendeeForOrganizer(database.db, id, input, actor),
   editEvent: (id, input, actor) => editEventForOrganizer(database.db, id, input, actor),
+  registrationQueries: {
+    list: (id, input, actor) => listRegistrationsForOrganizer(database.db, id, input, actor),
+    get: (id, registrationId, actor) => getRegistrationForOrganizer(database.db, id, registrationId, actor),
+  },
   eventQueries: {
     list: (input, actor) => listEventsForOrganizer(database.db, input, actor),
     get: (id, actor) => getEventForOrganizer(database.db, id, actor),
