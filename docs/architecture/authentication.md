@@ -287,3 +287,14 @@ En la transacción se bloquean con FOR SHARE, en orden, usuario, asignación eve
 El correo no es una identidad global ni prueba de propiedad. No se consultan ni reutilizan perfiles de otros eventos. Solo un organizador autorizado puede recibir el conflicto por correo de su evento. Respuestas ajenas/inexistentes comparten 404. Los errores del parser y de persistencia se reducen a mensajes controlados; el log de error de inscripción registra un código genérico, no el cuerpo ni el error SQL.
 
 Las pruebas incluyen duplicados concurrentes y operaciones esperando un cierre, una deshabilitación o una eliminación de asignación. La prueba manual utilizó una identidad real y un evento ficticio propio; aislamiento entre organizadores se verificó automáticamente, no con dos cuentas reales. Rate limiting, auditoría operativa, pruebas de carga y recuperación de resultados inciertos siguen pendientes.
+
+
+## Inscripción desde la web — OE-03-001B
+
+Issue #37 habilita el formulario después de comprobar organizer y consultar el evento asignado. La lectura previa y los controles visuales son ayudas de interfaz; cada POST revalida identidad, permisos y estado en la API. Ni eventId ni correo aportados por el cliente conceden permisos.
+
+El envío usa la cuenta seleccionada y el scope configurado. Se comprueba la cuenta antes y después de la llamada; el desmontaje aborta la espera e ignora respuestas tardías. Cambio de cuenta, cierre de sesión, interacción de MSAL o pérdida de acceso retiran los datos del asistente. No se guardan esos datos en almacenamiento del navegador; el borrador de creación de eventos conserva su mecanismo separado.
+
+El formulario no muestra perfiles asociados a un correo duplicado. 401/403 invalidan el acceso comprobado y 404 retira el evento. Durante la inscripción se oculta la creación y se deshabilita Comprobar acceso, manteniendo disponible cerrar sesión. Abortar no deshace una escritura ya aceptada.
+
+Las pruebas automatizadas de web simulan API/MSAL y verifican selección de cuenta, scope, cancelación y respuestas tardías. La comprobación manual mostró altas y duplicado con una cuenta real; no acredita aislamiento manual entre dos cuentas. El bloqueo de resultados inciertos es local y temporal; quedan pendientes reconciliación autorizada, auditoría, rate limiting y pruebas de carga.

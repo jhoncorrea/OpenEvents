@@ -417,3 +417,16 @@ Errores planos `{code,message}` sin cuerpo original, correo, SQL ni detalles del
 | 500 | INTERNAL_SERVER_ERROR | Fallo interno, sin exponer datos personales. |
 
 No se aprovisiona al organizador en esta ruta. Se crea un asistente nuevo por inscripción y se guardan ambas filas atómicamente; un fallo revierte ambas. No cambia la versión del evento. El mismo correo puede registrarse en otros eventos con perfiles independientes. No hay reintento automático, clave de idempotencia, envío de correo ni generación de QR. No se garantiza repetir la respuesta original tras perderla: la unicidad evita duplicados, pero el reenvío puede responder 409.
+
+
+## Cliente web de inscripción — OE-03-001B (Issue #37)
+
+Consume POST /api/v1/events/{eventId}/registrations sin modificar el contrato ni el esquema. Valida UUID y cuerpo estricto fullName/email antes de solicitar token; recorta nombre y correo y convierte el correo ASCII a minúsculas, conservando puntos y +. La URL debe ser HTTPS salvo HTTP local permitido, sin credenciales, query ni fragmento.
+
+Usa la cuenta seleccionada, token silencioso, Bearer, cache no-store, credentials omit y redirect error. El límite de fetch y lectura JSON es de 15 segundos; no limita la espera del proveedor de identidad. No redirige ni reintenta automáticamente. Una cancelación antes de enviar evita el POST; después de enviarlo no garantiza rollback.
+
+Solo se acepta 201 con UUID válidos, eventId correspondiente, estado confirmed, origen manual, fecha UTC canónica y nombre/correo normalizados correspondientes a la solicitud. Se descartan campos adicionales. Una respuesta de éxito incoherente se considera incierta, sin presentar confirmación.
+
+400/413/415 permiten corregir datos; 401/403 y fallos de autenticación invalidan el acceso. 404 retira el evento disponible. Los 409 conocidos distinguen correo duplicado de estado no permitido; un 409 desconocido, fallo de red, timeout, respuesta ilegible o error inesperado no se interpreta como éxito. Se muestran mensajes controlados sin cuerpo remoto ni detalles internos.
+
+El formulario bloquea envíos simultáneos y resultados inciertos. El bloqueo por evento vive en memoria durante la cuenta montada y sobrevive a una nueva comprobación de acceso, pero no a recarga o cambio de cuenta. No sustituye la unicidad del servidor ni recupera una respuesta perdida. GET del evento verifica acceso/estado, no la existencia de una inscripción; no hay endpoint nuevo de reconciliación.

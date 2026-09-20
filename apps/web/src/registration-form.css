@@ -1,0 +1,11 @@
+.registration-panel { margin-top: 20px; }
+.registration-panel h2:focus, .registration-error:focus { outline: 3px solid #245bba; outline-offset: 4px; }
+.registration-error { border-left: 4px solid #ad2525; padding: 14px; background: #fff0ed; color: #8b2222; }
+.registration-field-error { color: #8b2222; font-size: .9rem; }
+.registration-panel fieldset > button { margin-top: 20px; }
+.registration-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.registration-panel .registration-cancel { margin-top: 18px; }
+.registration-result { display: grid; grid-template-columns: minmax(90px, 140px) minmax(0, 1fr); gap: 12px 18px; margin: 24px 0; }
+.registration-result dt { font-weight: 700; }
+.registration-result dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .registration-result { grid-template-columns: 1fr; gap: 6px; } .registration-result dd { margin-bottom: 12px; } }

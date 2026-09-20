@@ -23,6 +23,8 @@ import {
   it,
   vi,
 } from "vitest";
+import { registerApiAttendee, type ApiRegistration } from "./api-registrations";
+import { RegistrationError } from "./registration-error";
 import SessionControls from "./SessionControls";
 import { fetchApiIdentity } from "./api-auth";
 import { listApiEvents, getApiEvent, EventQueryError, type ApiEventPage } from "./api-event-queries";
@@ -59,6 +61,10 @@ vi.mock("./api-event-queries", async (importOriginal) => {
 vi.mock("./api-event-edits", async (importOriginal) => {
   const original = await importOriginal<typeof import("./api-event-edits")>();
   return { ...original, editApiEvent: vi.fn() };
+});
+vi.mock("./api-registrations", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./api-registrations")>();
+  return { ...original, registerApiAttendee: vi.fn() };
 });
 const account: AccountInfo = {
   homeAccountId: "test-home",
@@ -640,5 +646,72 @@ describe("SessionControls event queries", () => {
     await screen.findByRole("button", { name: "Ver detalle de Evento consultado" });
     expect(screen.getByText("Evento creado correctamente")).toBeTruthy();
     expect(listApiEvents).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe("SessionControls attendee registration", () => {
+  const registration: ApiRegistration = { id: "b4444444-4444-4444-8444-444444444444", eventId: queriedEvent.id,
+    status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z",
+    attendee: { id: "c4444444-4444-4444-8444-444444444444", fullName: "Persona prueba", email: "persona@example.com" } };
+  beforeEach(() => {
+    vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });
+    vi.mocked(getApiEvent).mockResolvedValue(queriedEvent);
+    vi.mocked(registerApiAttendee).mockResolvedValue(registration);
+  });
+  async function showDetail() {
+    fireEvent.click(await screen.findByRole("button", { name: "Cargar eventos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver detalle de Evento consultado" }));
+    await screen.findByRole("button", { name: "Registrar asistente" });
+  }
+  async function openRegistration() {
+    checkAccess(); await showDetail(); fireEvent.click(screen.getByRole("button", { name: "Registrar asistente" }));
+    await screen.findByLabelText("Nombre completo");
+  }
+  function submitRegistration() {
+    fireEvent.change(screen.getByLabelText("Nombre completo"), { target: { value: " Persona prueba " } });
+    fireEvent.change(screen.getByLabelText("Correo electrónico"), { target: { value: "Persona@Example.COM" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar inscripción" }));
+  }
+  it("sends normalized data with the selected account, scope and event", async () => {
+    const view = setup(); await openRegistration();
+    expect(screen.queryByRole("button", { name: "Crear evento" })).toBeNull();
+    expect((screen.getByRole("button", { name: "Comprobar acceso" }) as HTMLButtonElement).disabled).toBe(true);
+    submitRegistration(); await screen.findByText("Asistente registrado correctamente.");
+    expect(registerApiAttendee).toHaveBeenCalledExactlyOnceWith({ instance: view.instance, account,
+      apiScope: "api://44444444-4444-4444-8444-444444444444/access_as_user", apiUrl: "http://localhost:3001",
+      eventId: queriedEvent.id, input: { fullName: "Persona prueba", email: "persona@example.com" }, signal: expect.any(AbortSignal) });
+    fireEvent.click(screen.getByText("Registrar otro asistente"));
+    expect((screen.getByLabelText("Nombre completo") as HTMLInputElement).value).toBe("");
+    expect(registerApiAttendee).toHaveBeenCalledTimes(1);
+  });
+  it("keeps uncertainty blocked after navigation and a new access check", async () => {
+    vi.mocked(registerApiAttendee).mockRejectedValue(new RegistrationError("uncertain"));
+    vi.spyOn(window, "confirm").mockReturnValue(true); setup(); await openRegistration(); submitRegistration();
+    await screen.findByText(/No pudimos confirmar la inscripción/); fireEvent.click(screen.getByText("Volver al evento"));
+    await screen.findByText(/resultado pendiente de verificar/);
+    checkAccess(); await showDetail();
+    expect((screen.getByRole("button", { name: "Registrar asistente" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(registerApiAttendee).toHaveBeenCalledTimes(1);
+  });
+  it("invalidates access and clears attendee data after forbidden", async () => {
+    vi.mocked(registerApiAttendee).mockRejectedValue(new RegistrationError("forbidden"));
+    setup(); await openRegistration(); submitRegistration(); await screen.findByText(/Vuelve a comprobar el acceso antes de continuar/);
+    expect(screen.queryByLabelText("Nombre completo")).toBeNull(); expect(screen.queryByText("persona@example.com")).toBeNull();
+  });
+  it.each(["account", "logout", "interaction"])("aborts registration on %s and ignores late success", async change => {
+    const request = deferred<ApiRegistration>(); vi.mocked(registerApiAttendee).mockReturnValue(request.promise);
+    const view = setup(); await openRegistration(); submitRegistration(); await waitFor(() => expect(registerApiAttendee).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(registerApiAttendee).mock.calls[0][0].signal;
+    if (change === "account") view.switchAccount({ ...account, homeAccountId: "other" });
+    else if (change === "logout") fireEvent.click(screen.getByText("Cerrar sesión"));
+    else view.setProgress(InteractionStatus.AcquireToken);
+    expect(signal?.aborted).toBe(true);
+    await act(async () => request.resolve(registration));
+    expect(screen.queryByText("Asistente registrado correctamente.")).toBeNull(); expect(screen.queryByLabelText("Nombre completo")).toBeNull();
+    if (change === "interaction") {
+      view.setProgress(InteractionStatus.None); await showDetail();
+      expect((screen.getByRole("button", { name: "Registrar asistente" }) as HTMLButtonElement).disabled).toBe(true);
+    }
   });
 });
