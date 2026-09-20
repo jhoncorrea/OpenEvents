@@ -12,6 +12,8 @@ import {
 } from "./api-events";
 import { parseAuthConfig } from "./auth-config";
 import { clearEventDraft } from "./event-draft";
+import type { EditEventPayload } from "./api-event-edits";
+import { EventEditError } from "./event-edit-error";
 import { EventQueryError } from "./event-query-error";
 import type { CreateEventPayload } from "./event-form";
 
@@ -92,6 +94,7 @@ function AccountControls({
   // Una vez abierto, conservar el formulario durante nuevas comprobaciones.
   // Este estado se reinicia al cambiar la cuenta mediante la key del padre.
   const [formOpened, setFormOpened] = useState(false);
+  const [editingOpen, setEditingOpen] = useState(false);
 
   const operationLock = useRef(false);
 
@@ -115,8 +118,9 @@ function AccountControls({
 
   function invalidateAccess() {
     setIdentity(null);
+    setEditingOpen(false);
     setNotice(
-      "Vuelve a comprobar el acceso antes de continuar. Los campos se conservan mientras permanezcas en esta pantalla con la misma cuenta.",
+      "Vuelve a comprobar el acceso antes de continuar. El borrador de creación se conserva con esta cuenta. Los datos de consulta y edición se han retirado.",
     );
   }
 
@@ -165,6 +169,7 @@ function AccountControls({
     if (
       !account ||
       !draftStorageAvailable ||
+      editingOpen ||
       operationLock.current ||
       busy ||
       !isCurrentAccount()
@@ -250,11 +255,30 @@ function AccountControls({
       throw error;
     }
   }
+  async function handleEdit(eventId: string, input: EditEventPayload, signal: AbortSignal) {
+    if (signal.aborted) throw new EventEditError("cancelled");
+    if (!account || !isCurrentAccount() || !canCreate || busy || operationLock.current) {
+      throw new EventEditError("unauthorized");
+    }
+    try {
+      const config = parseAuthConfig(import.meta.env);
+      const { editApiEvent } = await import("./api-event-edits");
+      if (signal.aborted || !isCurrentAccount()) throw new EventEditError("cancelled");
+      const updated = await editApiEvent({ instance, account, apiScope: config.apiScope,
+        apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, input, signal });
+      if (signal.aborted || !isCurrentAccount()) throw new EventEditError("cancelled");
+      return updated;
+    } catch (error) {
+      if (signal.aborted || !isCurrentAccount()) throw new EventEditError("cancelled");
+      throw error;
+    }
+  }
   async function handleCreate(input: CreateEventPayload) {
     if (
       !account ||
       !isCurrentAccount() ||
       !canCreate ||
+      editingOpen ||
       busy ||
       operationLock.current
     ) {
@@ -305,7 +329,7 @@ function AccountControls({
                     ? "Procesando sesión…"
                     : account
                       ? "Has iniciado sesión en OpenEvents."
-                      : "Inicia sesión para consultar y crear eventos."}
+                      : "Inicia sesión para consultar, crear y editar eventos."}
             </p>
           </div>
 
@@ -327,12 +351,12 @@ function AccountControls({
             <button
               type="button"
               onClick={() => void handleCheckAccess()}
-              disabled={busy || !draftStorageAvailable}
+              disabled={busy || !draftStorageAvailable || editingOpen}
             >
               {pending === "api" ? "Comprobando…" : "Comprobar acceso"}
             </button>
 
-            <p>Comprueba tus permisos para consultar y crear eventos.</p>
+            <p>Comprueba tus permisos para consultar, crear y editar eventos.</p>
           </div>
         )}
 
@@ -369,12 +393,14 @@ function AccountControls({
             enabled={canCreate && !busy}
             loadPage={queryEvents}
             loadDetail={queryDetail}
+            saveEvent={handleEdit}
+            onEditingChange={setEditingOpen}
             onAccessInvalidated={() => { if (isCurrentAccount()) invalidateAccess(); }}
           />
         </Suspense>
       )}
       {account && formOpened && (
-        <div hidden={!canCreate}>
+        <div hidden={!canCreate || editingOpen}>
           <Suspense
             fallback={
               <p role="status" aria-live="polite">
@@ -384,7 +410,7 @@ function AccountControls({
           >
             <CreateEventForm
               accountStorageKey={accountKey(account)}
-              disabled={!canCreate || busy}
+              disabled={!canCreate || busy || editingOpen}
               onCreate={handleCreate}
               onAccessInvalidated={invalidateAccess}
               onDraftStorageChange={setDraftStorageAvailable}

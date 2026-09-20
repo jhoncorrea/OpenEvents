@@ -1,12 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { EventQueryError, type ApiEvent, type ApiEventPage } from "./api-event-queries";
+import type { EditEventPayload } from "./api-event-edits";
+import type { EditEventFormProps } from "./EditEventForm";
 import "./my-events.css";
+
+const EditEventForm = lazy(() => import("./EditEventForm").catch(() => ({
+  default: function EditorLoadError({ onCancel }: EditEventFormProps) {
+    return <div role="alert"><p>No pudimos cargar el editor. Vuelve al detalle y recarga la página para intentarlo de nuevo.</p>
+      <button type="button" onClick={onCancel}>Volver al detalle</button></div>;
+  },
+})));
 
 interface Props {
   accountKey: string;
   enabled: boolean;
   loadPage: (cursor: string | undefined, signal: AbortSignal) => Promise<ApiEventPage>;
   loadDetail: (id: string, signal: AbortSignal) => Promise<ApiEvent>;
+  saveEvent: (id: string, input: EditEventPayload, signal: AbortSignal) => Promise<ApiEvent>;
+  onEditingChange?: (editing: boolean) => void;
   onAccessInvalidated: () => void;
 }
 const statusLabels: Record<ApiEvent["status"], string> = {
@@ -24,12 +35,14 @@ export default function MyEvents(props: Props) {
   return props.enabled ? <EventBrowser key={props.accountKey} {...props} /> : null;
 }
 
-function EventBrowser({ loadPage, loadDetail, onAccessInvalidated }: Props) {
+function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, onEditingChange, onAccessInvalidated }: Props) {
   const [items, setItems] = useState<ApiEvent[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<ApiEvent | null>(null);
+  const [editing, setEditing] = useState<ApiEvent | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
@@ -40,20 +53,26 @@ function EventBrowser({ loadPage, loadDetail, onAccessInvalidated }: Props) {
   const returnButton = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => () => { sequence.current++; active.current?.abort(); }, []);
-  useEffect(() => { if (selected) heading.current?.focus(); }, [selected]);
+  useEffect(() => { if (selected && !editing) heading.current?.focus(); }, [selected, editing]);
+  useEffect(() => () => { onEditingChange?.(false); }, [onEditingChange]);
+
+  function changeEditing(event: ApiEvent | null) {
+    setEditing(event);
+    onEditingChange?.(event !== null);
+  }
 
   function begin() {
     active.current?.abort();
     const controller = new AbortController(); active.current = controller;
     const version = ++sequence.current;
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setNotice(null);
     return { signal: controller.signal, current: () => sequence.current === version && !controller.signal.aborted };
   }
   function failed(cause: unknown) {
     const failure = cause instanceof EventQueryError ? cause : new EventQueryError("unavailable");
     if (failure.kind === "cancelled") return;
     if (["authentication", "interaction_required", "unauthorized", "forbidden"].includes(failure.kind)) {
-      setItems([]); setDetail(null); setCursor(null); setBlocked(true);
+      setItems([]); setDetail(null); changeEditing(null); setCursor(null); setBlocked(true);
       onAccessInvalidated();
     }
     setError(failure.message);
@@ -75,14 +94,21 @@ function EventBrowser({ loadPage, loadDetail, onAccessInvalidated }: Props) {
     } catch (cause) { if (request.current()) failed(cause); }
     finally { if (request.current()) { active.current = null; setBusy(false); } }
   }
-  async function open(id: string, button?: HTMLButtonElement) {
+  async function open(id: string, button?: HTMLButtonElement, forEdit = false) {
     if (active.current || blocked) return;
     if (button) returnButton.current = button;
     setSelected(id); setDetail(null);
     const request = begin();
     try {
       const event = await loadDetail(id, request.signal);
-      if (request.current()) setDetail(event);
+      if (request.current()) {
+        setDetail(event);
+        setItems(previous => previous.map(item => item.id === event.id ? event : item));
+        if (forEdit) {
+          if (event.status === "draft") changeEditing(event);
+          else setNotice("El evento ya no está en borrador y no se puede editar.");
+        }
+      }
     } catch (cause) {
       if (request.current()) {
         if (cause instanceof EventQueryError && cause.kind === "not_found") setItems(previous => previous.filter(event => event.id !== id));
@@ -92,19 +118,20 @@ function EventBrowser({ loadPage, loadDetail, onAccessInvalidated }: Props) {
   }
   function back() {
     sequence.current++; active.current?.abort(); active.current = null;
-    setSelected(null); setDetail(null); setBusy(false); setError(null);
+    setSelected(null); setDetail(null); changeEditing(null); setBusy(false); setError(null); setNotice(null);
     requestAnimationFrame(() => returnButton.current?.focus());
   }
 
   return <section className="my-events" aria-label="Mis eventos">
     <div className="my-events-header">
       <h2 ref={heading} tabIndex={-1}>{selected ? "Detalle del evento" : "Mis eventos"}</h2>
-      {selected
+      {!editing && (selected
         ? <button type="button" onClick={back}>Volver al listado</button>
-        : <button type="button" disabled={busy || blocked} onClick={() => void page()}>{loaded ? "Actualizar listado" : "Cargar eventos"}</button>}
+        : <button type="button" disabled={busy || blocked} onClick={() => void page()}>{loaded ? "Actualizar listado" : "Cargar eventos"}</button>)}
     </div>
     {busy && <p role="status">{selected ? "Cargando detalle…" : "Cargando eventos…"}</p>}
     {error && <p role="alert" className="my-events-error">{error}</p>}
+    {notice && <p role="status">{notice}</p>}
     {blocked && <p>Vuelve a comprobar el acceso con tu cuenta.</p>}
     {!blocked && selected && !busy && error && <button type="button" onClick={() => void open(selected)}>Reintentar detalle</button>}
     {!selected && !blocked && <>
@@ -124,7 +151,7 @@ function EventBrowser({ loadPage, loadDetail, onAccessInvalidated }: Props) {
       </>}
       {cursor && <button type="button" disabled={busy} onClick={() => void page(true)}>Cargar más eventos</button>}
     </>}
-    {selected && detail && !blocked && <dl className="my-events-detail">
+    {selected && detail && !blocked && !editing && <><dl className="my-events-detail">
       <dt>Nombre</dt><dd>{detail.name}</dd>
       <dt>Estado</dt><dd>{statusLabels[detail.status]}</dd>
       <dt>Ubicación</dt><dd>{detail.location}</dd>
@@ -133,6 +160,21 @@ function EventBrowser({ loadPage, loadDetail, onAccessInvalidated }: Props) {
       <dt>Zona horaria</dt><dd>{detail.timezone}</dd>
       <dt>Slug</dt><dd>{detail.slug}</dd>
       <dt>Identificador</dt><dd>{detail.id}</dd>
-    </dl>}
+    </dl>
+      {detail.status === "draft" && <button type="button" disabled={busy} onClick={() => void open(detail.id, undefined, true)}>Editar evento</button>}
+    </>}
+    {editing && !blocked && <Suspense fallback={<p role="status">Cargando editor…</p>}>
+      <EditEventForm accountKey={accountKey} enabled={!blocked} event={editing}
+        onSave={(input, signal) => saveEvent(editing.id, input, signal)}
+        loadLatest={signal => loadDetail(editing.id, signal)}
+        onSaved={updated => {
+          setDetail(updated); setItems(previous => previous.map(item => item.id === updated.id ? updated : item));
+          changeEditing(null); setNotice("Evento actualizado correctamente.");
+        }}
+        onCancel={() => { const id = editing.id; changeEditing(null); void open(id); }}
+        onAccessInvalidated={() => failed(new EventQueryError("unauthorized"))}
+        onUnavailable={() => { setDetail(null); setItems(previous => previous.filter(item => item.id !== editing.id)); }}
+      />
+    </Suspense>}
   </section>;
 }

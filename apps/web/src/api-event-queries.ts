@@ -2,7 +2,7 @@ import { EventQueryError, type EventQueryErrorKind } from "./event-query-error";
 import { InteractionRequiredAuthError, type AccountInfo, type IPublicClientApplication } from "@azure/msal-browser";
 
 export interface ApiEvent {
-  id: string; name: string; slug: string; startsAt: string; endsAt: string;
+  version: number; id: string; name: string; slug: string; startsAt: string; endsAt: string;
   timezone: string; location: string; createdAt: string;
   status: "draft" | "active" | "closed" | "cancelled";
 }
@@ -22,10 +22,11 @@ function utc(value: unknown): value is string {
   const time = Date.parse(value);
   return Number.isFinite(time) && new Date(time).toISOString() === value.replace(/(?:\.(\d{1,3}))?Z$/, (_, digits: string | undefined) => `.${(digits ?? "").padEnd(3, "0")}Z`);
 }
-function parseEvent(value: unknown): ApiEvent {
+export function parseApiEvent(value: unknown): ApiEvent {
   const fail = () => { throw new EventQueryError("invalid_response"); };
   if (!record(value)) return fail();
-  if (typeof value.id !== "string" || !uuid.test(value.id) ||
+  if (!Number.isInteger(value.version) || typeof value.version !== "number" || value.version < 1 || value.version > 2147483647 ||
+      typeof value.id !== "string" || !uuid.test(value.id) ||
       typeof value.name !== "string" || !value.name.trim() || value.name.length > 200 ||
       typeof value.slug !== "string" || value.slug.length > 120 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.slug) ||
       typeof value.location !== "string" || !value.location.trim() || value.location.length > 500 ||
@@ -35,7 +36,7 @@ function parseEvent(value: unknown): ApiEvent {
       !["draft", "active", "closed", "cancelled"].includes(String(value.status))) return fail();
   try { new Intl.DateTimeFormat("es-PE", { timeZone: value.timezone }).format(); }
   catch { return fail(); }
-  return { id: value.id.toLowerCase(), name: value.name, slug: value.slug,
+  return { version: value.version, id: value.id.toLowerCase(), name: value.name, slug: value.slug,
     location: value.location, timezone: value.timezone, startsAt: value.startsAt,
     endsAt: value.endsAt, createdAt: value.createdAt, status: value.status as ApiEvent["status"] };
 }
@@ -97,7 +98,7 @@ export async function listApiEvents(options: EventQueryOptions & { limit?: numbe
       !(data.nextCursor === null || (typeof data.nextCursor === "string" && cursorPattern.test(data.nextCursor)))) {
     throw new EventQueryError("invalid_response");
   }
-  const items = data.items.map(parseEvent);
+  const items = data.items.map(parseApiEvent);
   if (new Set(items.map(event => event.id)).size !== items.length ||
       (data.nextCursor !== null && (items.length === 0 || data.nextCursor === options.cursor))) {
     throw new EventQueryError("invalid_response");
@@ -108,7 +109,7 @@ export async function getApiEvent(options: EventQueryOptions & { eventId: string
   const url = baseUrl(options);
   if (!uuid.test(options.eventId)) throw new EventQueryError("validation");
   url.pathname += `/${options.eventId.toLowerCase()}`;
-  const event = parseEvent(await read(url, options));
+  const event = parseApiEvent(await read(url, options));
   if (event.id !== options.eventId.toLowerCase()) throw new EventQueryError("invalid_response");
   return event;
 }

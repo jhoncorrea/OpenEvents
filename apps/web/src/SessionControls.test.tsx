@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import {
   InteractionStatus,
@@ -25,6 +26,9 @@ import {
 import SessionControls from "./SessionControls";
 import { fetchApiIdentity } from "./api-auth";
 import { listApiEvents, getApiEvent, EventQueryError, type ApiEventPage } from "./api-event-queries";
+import { editApiEvent } from "./api-event-edits";
+import { EventEditError } from "./event-edit-error";
+import type { ApiEvent } from "./api-event-queries";
 import { createApiEvent } from "./api-events";
 import {
   readEventDraft,
@@ -51,6 +55,10 @@ vi.mock("./api-events", async (importOriginal) => {
 vi.mock("./api-event-queries", async (importOriginal) => {
   const original = await importOriginal<typeof import("./api-event-queries")>();
   return { ...original, listApiEvents: vi.fn(), getApiEvent: vi.fn() };
+});
+vi.mock("./api-event-edits", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./api-event-edits")>();
+  return { ...original, editApiEvent: vi.fn() };
 });
 const account: AccountInfo = {
   homeAccountId: "test-home",
@@ -470,8 +478,87 @@ describe("SessionControls", () => {
 const queriedEvent = {
   id: "a5555555-5555-4555-8555-555555555555", name: "Evento consultado", slug: "evento-consultado",
   startsAt: "2027-08-27T14:00:00Z", endsAt: "2027-08-27T22:00:00Z", createdAt: "2026-09-19T12:00:00Z",
-  timezone: "America/Lima", location: "Lugar consultado", status: "draft" as const,
+  timezone: "America/Lima", location: "Lugar consultado", version: 1, status: "draft" as const,
 };
+
+describe("SessionControls event editing", () => {
+  beforeEach(() => {
+    vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });
+    vi.mocked(getApiEvent).mockResolvedValue(queriedEvent);
+    vi.mocked(editApiEvent).mockResolvedValue({ ...queriedEvent, name: "Cambio guardado", version: 2 });
+  });
+  async function openEditor() {
+    checkAccess(); fireEvent.click(await screen.findByRole("button", { name: "Cargar eventos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver detalle de Evento consultado" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar evento" }));
+    return await screen.findByRole("region", { name: "Editar evento" });
+  }
+  function saveEdit(editor: HTMLElement) {
+    fireEvent.change(within(editor).getByLabelText("Nombre del evento"), { target: { value: "Cambio guardado" } });
+    fireEvent.click(within(editor).getByText("Guardar cambios"));
+  }
+  it("sends a PATCH with the current account, scope, version and event ID", async () => {
+    const view = setup(); const editor = await openEditor(); saveEdit(editor);
+    await screen.findByText("Evento actualizado correctamente.");
+    expect(editApiEvent).toHaveBeenCalledExactlyOnceWith({
+      instance: view.instance, account, apiScope: "api://44444444-4444-4444-8444-444444444444/access_as_user", apiUrl: "http://localhost:3001",
+      eventId: queriedEvent.id, input: { expectedVersion: 1, name: "Cambio guardado" }, signal: expect.any(AbortSignal),
+    });
+    expect(screen.getByText("Cambio guardado")).toBeTruthy();
+  });
+  it("prevents creation and access checks from discarding an open editor", async () => {
+    setup(); const editor = await openEditor();
+    expect(screen.getByRole("button", { name: "Comprobar acceso" }).matches(":disabled")).toBe(true);
+    expect(screen.queryByRole("button", { name: "Crear evento" })).toBeNull();
+    fireEvent.click(screen.getByText("Comprobar acceso")); expect(fetchApiIdentity).toHaveBeenCalledTimes(1);
+    expect(createApiEvent).not.toHaveBeenCalled(); expect(within(editor).getByLabelText("Nombre del evento")).toBeTruthy();
+    fireEvent.click(within(editor).getByText("Cancelar edición")); await screen.findByRole("button", { name: "Editar evento" });
+    await expectCreationEnabled(); expect(screen.getByText("Comprobar acceso").matches(":disabled")).toBe(false);
+  });
+  it("preserves an existing creation draft while the editor is open", async () => {
+    saveEventDraft(draftKey(account), { values, outcomeUncertain: false }); setup(); const editor = await openEditor();
+    fireEvent.click(within(editor).getByText("Cancelar edición")); await expectCreationEnabled();
+    expect((screen.getByLabelText("Nombre del evento") as HTMLInputElement).value).toBe(values.name);
+  });
+  it("aborts a pending PATCH when logout begins and ignores its result", async () => {
+    const request = deferred<ApiEvent>(); vi.mocked(editApiEvent).mockReturnValue(request.promise);
+    const view = setup(); saveEdit(await openEditor()); await waitFor(() => expect(editApiEvent).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(editApiEvent).mock.calls[0][0].signal;
+    fireEvent.click(screen.getByText("Cerrar sesión")); await waitFor(() => expect(view.logoutRedirect).toHaveBeenCalled());
+    expect(signal?.aborted).toBe(true); expect(screen.queryByRole("region", { name: "Editar evento" })).toBeNull();
+    await act(async () => request.resolve({ ...queriedEvent, name: "Late save", version: 2 }));
+    expect(screen.queryByText("Late save")).toBeNull(); expect(screen.queryByText("Evento actualizado correctamente.")).toBeNull();
+  });
+  it("clears editing when the selected account changes", async () => {
+    const request = deferred<ApiEvent>(); vi.mocked(editApiEvent).mockReturnValue(request.promise);
+    const view = setup(); saveEdit(await openEditor()); await waitFor(() => expect(editApiEvent).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(editApiEvent).mock.calls[0][0].signal;
+    view.switchAccount({ ...account, homeAccountId: "different" }); expect(signal?.aborted).toBe(true);
+    await act(async () => request.resolve({ ...queriedEvent, name: "Other account data", version: 2 }));
+    expect(screen.queryByText("Other account data")).toBeNull(); expect(screen.queryByRole("region", { name: "Editar evento" })).toBeNull();
+  });
+  it("discards editing on an MSAL interaction without accepting late responses", async () => {
+    const request = deferred<ApiEvent>(); vi.mocked(editApiEvent).mockReturnValue(request.promise);
+    const view = setup(); saveEdit(await openEditor()); await waitFor(() => expect(editApiEvent).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(editApiEvent).mock.calls[0][0].signal;
+    view.setProgress(InteractionStatus.AcquireToken); expect(signal?.aborted).toBe(true);
+    await act(async () => request.resolve({ ...queriedEvent, version: 2 }));
+    expect(screen.queryByText("Evento actualizado correctamente.")).toBeNull();
+  });
+  it("invalidates access after forbidden editing and explains that edited data was cleared", async () => {
+    vi.mocked(editApiEvent).mockRejectedValue(new EventEditError("forbidden")); setup(); saveEdit(await openEditor());
+    await screen.findByText(/Los datos de consulta y edición se han retirado/);
+    expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull();
+    checkAccess(); await expectCreationEnabled();
+    expect(screen.queryByRole("region", { name: "Editar evento" })).toBeNull();
+  });
+  it("keeps the editor available for conflict recovery rather than invalidating the session", async () => {
+    vi.mocked(editApiEvent).mockRejectedValue(new EventEditError("version_conflict")); setup(); saveEdit(await openEditor());
+    expect(await screen.findByText("Consultar estado actual")).toBeTruthy();
+    expect(screen.getByText("Acceso a la API verificado.")).toBeTruthy(); expect(fetchApiIdentity).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Crear evento" })).toBeNull();
+  });
+});
 
 describe("SessionControls event queries", () => {
   beforeEach(() => {
