@@ -5,6 +5,8 @@ import type { EditEventPayload } from "./api-event-edits";
 import { EventEditError } from "./event-edit-error";
 import MyEvents from "./MyEvents";
 import { EventQueryError, type ApiEvent, type ApiEventPage } from "./api-event-queries";
+import { RegistrationQueryError, type QueriedRegistration } from "./api-registration-queries";
+import type { RegistrationBrowserProps } from "./RegistrationBrowser";
 
 const event: ApiEvent = { id: "a4444444-4444-4444-8444-444444444444", name: "Evento Lima", slug: "evento-lima",
   startsAt: "2027-08-27T14:00:00Z", endsAt: "2027-08-27T22:00:00Z", createdAt: "2026-09-19T12:00:00Z",
@@ -247,5 +249,63 @@ describe("MyEvents registration integration", () => {
     const props = registrationProps(); render(<MyEvents {...props} uncertainRegistrationIds={new Set([event.id])} />); await detail();
     expect((screen.getByRole("button", { name: "Registrar asistente" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/resultado pendiente de verificar/)).toBeTruthy();
+  });
+});
+
+describe("MyEvents registration queries", () => {
+  const registration: QueriedRegistration = { id: "b4444444-4444-4444-8444-444444444444", eventId: event.id,
+    status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z",
+    attendee: { id: "c4444444-4444-4444-8444-444444444444", fullName: "Persona consulta", email: "consulta@example.com" } };
+  function queries() {
+    return { ...setup(),
+      loadRegistrations: vi.fn<RegistrationBrowserProps["loadPage"]>().mockResolvedValue({ items: [registration], nextCursor: null }),
+      loadRegistrationDetail: vi.fn<RegistrationBrowserProps["loadDetail"]>().mockResolvedValue(registration) };
+  }
+  async function browse() {
+    await load(); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Evento Lima" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver inscripciones" }));
+    await screen.findByRole("button", { name: "Cargar inscripciones" });
+  }
+  it.each(["draft", "active", "closed", "cancelled"] as const)("opens queries for an event in %s and refreshes its detail on return", async status => {
+    const props = queries(); props.loadDetail.mockResolvedValue({ ...event, status });
+    render(<MyEvents {...props} />); await browse();
+    expect(props.loadDetail).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "Editar evento" })).toBeNull();
+    fireEvent.click(screen.getByText("Cargar inscripciones")); await screen.findByText("Persona consulta");
+    expect(props.loadRegistrations).toHaveBeenCalledExactlyOnceWith(event.id, undefined, expect.any(AbortSignal));
+    fireEvent.click(screen.getByText("Ver inscripción")); await screen.findByText("Registro manual");
+    expect(props.loadRegistrationDetail).toHaveBeenCalledWith(event.id, registration.id, expect.any(AbortSignal));
+    fireEvent.click(screen.getByText("Volver al evento")); await screen.findByText(event.slug);
+    expect(props.loadDetail).toHaveBeenCalledTimes(3); expect(screen.queryByText("consulta@example.com")).toBeNull();
+  });
+  it("keeps uncertain writes blocked after consulting registrations", async () => {
+    const props = queries();
+    render(<MyEvents {...props} uncertainRegistrationIds={new Set([event.id])} registerAttendee={vi.fn()} />);
+    await browse(); fireEvent.click(screen.getByText("Cargar inscripciones")); await screen.findByText("Persona consulta");
+    fireEvent.click(screen.getByText("Volver al evento"));
+    const button = await screen.findByRole("button", { name: "Registrar asistente" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/resultado pendiente de verificar/)).toBeTruthy();
+  });
+  it("removes an event from the list after a registration read returns 404", async () => {
+    const props = queries(); props.loadRegistrations.mockRejectedValue(new RegistrationQueryError("not_found"));
+    render(<MyEvents {...props} />); await browse(); fireEvent.click(screen.getByText("Cargar inscripciones"));
+    await screen.findByText(/El evento o la inscripción ya no están disponibles/);
+    expect(screen.queryByRole("button", { name: "Ver detalle de Evento Lima" })).toBeNull();
+    expect(props.onAccessInvalidated).not.toHaveBeenCalled();
+  });
+  it("invalidates access on registration authorization failure", async () => {
+    const props = queries(); props.loadRegistrations.mockRejectedValue(new RegistrationQueryError("forbidden"));
+    render(<MyEvents {...props} />); await browse(); fireEvent.click(screen.getByText("Cargar inscripciones"));
+    await waitFor(() => expect(props.onAccessInvalidated).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("region", { name: "Inscripciones de Evento Lima" })).toBeNull();
+  });
+  it("does not open registration queries if refreshing event access fails", async () => {
+    const props = queries(); render(<MyEvents {...props} />); await load();
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Evento Lima" }));
+    await screen.findByRole("button", { name: "Ver inscripciones" });
+    props.loadDetail.mockRejectedValue(new EventQueryError("not_found")); fireEvent.click(screen.getByText("Ver inscripciones"));
+    await screen.findByRole("alert"); expect(props.loadRegistrations).not.toHaveBeenCalled();
+    expect(screen.queryByText("Cargar inscripciones")).toBeNull();
   });
 });

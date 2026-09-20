@@ -436,3 +436,34 @@ ADR-017: paginación por posición vinculada al evento. ADR-018: autorización t
 Preferencia acordada: usar el archivo temporal de prueba para comprobaciones repetibles y Postman para explorar/aprender. Retirar el archivo antes de commit. Las suites automatizadas siguen siendo la validación de regresión.
 
 Pendientes revisión documental, commit, PR, CI y merge. Después del merge: PDF con tres preguntas senior y respuestas, amenazas, resumen ejecutivo, dos ejemplos documentados por decisión y resumen visual. Nombre base: OpenEvents_OE-03-001C_Consulta_inscripciones_API_PR<número>. Las tres infografías educativas de Postman son material de práctica, no evidencia de cierre del PR.
+
+
+## 2026-09-20 — Cierre de OE-03-001C y desarrollo de OE-03-001D (Issue #41)
+
+### Punto de partida
+
+El mantenedor confirmó PR #40 integrado, CI verde, main sincronizado en 72a91f4 y eliminación local/remota de feat/39-registration-query-api. Se entregaron PDF e imagen de cierre fuera del repositorio. Se creó Issue #41 y la rama feat/41-registration-query-web desde main limpio.
+
+### Implementación y evidencia
+
+- Cliente GET con token de cuenta seleccionada, validación de respuesta/pertenencia, páginas acotadas, timeout de transporte de 15 segundos y cancelación. El timeout no limita la espera previa de MSAL. Sin reintentos automáticos.
+- Pantalla con listado, cargar más, actualizar, detalle y navegación accesible mediante botones, mensajes y gestión de foco. Estado efímero por cuenta/evento y descarte de respuestas tardías.
+- Integración en Mis eventos y SessionControls; nueva consulta del evento antes de abrir y al volver. Permite todos los estados para lectura; mantiene las restricciones de alta y edición.
+- Tipos y lint web aprobados por el mantenedor. Bloques focalizados aprobados: 189 (cliente y regresiones), 95 (cliente y pantalla), 149 (pantalla, eventos, sesión y alta). Son conjuntos solapados; no representan un total global sumable.
+- Nuevos casos: 63 cliente, 32 pantalla, 8 integración en MyEvents y 9 en SessionControls; total de 112 casos nuevos. Los tests simulan API/MSAL; no sustituyen las pruebas de PostgreSQL.
+- Capturas: listado con dos inscripciones confirmadas, detalle con origen manual, fecha America/Lima e identificador, regreso al listado y al evento. No se incorporan nombres/correos ni las capturas al repositorio. Una captura del listado no demuestra por sí sola la solicitud de actualización.
+- Validación global enviada por el mantenedor: **1.348 pruebas aprobadas**, desglosadas en 502 API, 635 web y 211 PostgreSQL. Typecheck, lint y build aprobados. git diff --check no reporta errores de espacios; aparecen avisos de normalización CRLF a LF en cuatro archivos web. No se declara commit, PR, CI o merge de #41. No se hizo prueba manual con segunda cuenta, paginación web superior a 20, carga o evaluación completa de accesibilidad.
+
+### Threat modeling
+
+| Categoría | Escenario | Mitigación y evidencia | Pendiente |
+|---|---|---|---|
+| Seguridad | Una respuesta tardía muestra asistentes de otra cuenta/evento, o se pierde la asignación. | Clave por cuenta/evento, abort y secuencia; validación de pertenencia; limpieza en 401/403/404. Pruebas focalizadas. La API conserva autorización. | Segunda cuenta real, auditoría y controles operativos. |
+| Concurrencia/carga | Doble clic, páginas repetidas o altas durante el recorrido. | Una solicitud activa, deduplicación, detección de ciclos y páginas de 20; actualizar reinicia. | No hay snapshot; faltan pruebas de carga y rate limiting. |
+| Experiencia | Un fallo de página se interpreta como fin o una consulta desbloquea un alta incierta. | Error recuperable, reinicio explícito, sin falso fin tras respuesta inválida; bloqueo de altas inciertas conservado. Pruebas de navegación y regresión. | Reconciliación específica, paginación manual extensa y revisión accesible completa. |
+
+### Decisiones y próximos pasos
+
+ADR-020: aislamiento por cuenta/evento y retiro conservador en 404. ADR-021: navegación con cursor opaco y recuperación explícita. ADR-022: contrato de lectura validado, separado del alta. No se modifican API, migraciones ni infraestructura. La historia principal no se cierra automáticamente por esta implementación; contrastar sus criterios después del merge.
+
+Siguiente: copiar la evidencia final, revisar el diff preparado y crear commit/PR. No repetir la suite global por este ajuste documental. Después de CI y merge, documentar el cierre con PDF y resumen visual siguiendo OpenEvents_OE-03-001D_Consulta_inscripciones_web_PR<número>.

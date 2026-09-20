@@ -1,0 +1,14 @@
+.registration-browser { margin-top: 24px; color: #173c30; }
+.registration-browser header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.registration-browser h3, .registration-browser h4 { margin: 0; overflow-wrap: anywhere; }
+.registration-browser p { line-height: 1.6; overflow-wrap: anywhere; }
+.registration-browser button { padding: 12px 18px; border: 1px solid #173c30; border-radius: 9px; background: #173c30; color: #fff; font-weight: 600; cursor: pointer; }
+.registration-browser button:disabled { opacity: .55; cursor: not-allowed; }
+.registration-browser button:focus-visible, .registration-browser h3:focus-visible { outline: 3px solid #4973db; outline-offset: 4px; }
+.registration-browser-list { padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.registration-browser-list li { padding: 20px; border: 1px solid #dce5df; border-radius: 12px; background: #f8faf7; }
+.registration-browser-error { color: #942b25; background: #fff0ee; padding: 14px; border-left: 4px solid #a82e26; border-radius: 6px; }
+.registration-browser dl { display: grid; grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); gap: 14px 20px; }
+.registration-browser dt { font-weight: 700; }
+.registration-browser dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .registration-browser dl { grid-template-columns: 1fr; gap: 5px; } .registration-browser dd { margin-bottom: 12px; } }

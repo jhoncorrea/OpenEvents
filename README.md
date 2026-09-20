@@ -492,7 +492,7 @@ El flujo evita reenvíos automáticos ante resultados inciertos y fue validado c
 
 ### Consulta de inscripciones por API — OE-03-001C (Issue #39)
 
-Implementada y validada localmente en `feat/39-registration-query-api`; pendiente de PR, CI y merge.
+Integrada mediante PR #40, merge `72a91f4`. El mantenedor confirmó CI verde, main sincronizado y rama eliminada en remoto y local.
 
 - `GET /api/v1/events/{eventId}/registrations`: devuelve `{ items, nextCursor }`, con `limit` 20 por defecto y máximo 100.
 - `GET /api/v1/events/{eventId}/registrations/{registrationId}`: devuelve una inscripción del evento indicado.
@@ -512,6 +512,32 @@ El organizador obtiene páginas acotadas y el detalle de una inscripción con da
 Cada consulta valida la identidad, el rol y la asignación vigente al evento antes de devolver información.<br>
 La decisión de seguridad principal es vincular tanto la autorización como la búsqueda de la inscripción al evento solicitado.<br>
 La entrega incorpora pruebas automatizadas y verificaciones reales en consola y Postman; la pantalla web de consulta queda pendiente.
+
+### Consulta de inscripciones desde la web — OE-03-001D (Issue #41)
+
+Implementada y validada globalmente en `feat/41-registration-query-web`; pendientes commit, PR, CI y merge.
+
+Recorrido: **Comprobar acceso → Cargar eventos → Ver detalle → Ver inscripciones → Cargar inscripciones → Ver inscripción**. Al abrir y al volver se consulta de nuevo el evento. Se permite consultar en draft, active, closed y cancelled; los permisos siguen aplicándose en cada GET de la API.
+
+El listado muestra nombre, correo y estado, incluye canceladas y carga páginas de 20 mediante «Cargar más inscripciones». El contador indica elementos cargados, no el total del evento. «Actualizar inscripciones» reinicia el recorrido; nextCursor null indica fin. El cursor se trata como opaco y no se guarda entre eventos. No existe orden cronológico ni instantánea entre páginas; las altas concurrentes pueden requerir actualizar desde el inicio.
+
+«Ver inscripción» recupera un detalle reciente con estado y origen persistidos, fecha en la zona horaria del evento e identificador. «Volver a inscripciones» conserva el listado y devuelve el foco al botón de origen. La pantalla ofrece mensajes de carga, vacío, errores y reintentos explícitos; un cursor inválido exige reiniciar sin presentar falsamente el fin del listado.
+
+Los datos permanecen en memoria. Cambio de cuenta/evento, cierre de sesión, nueva comprobación de acceso o interacción de MSAL desmontan las consultas afectadas; se abortan solicitudes y se descartan resultados tardíos. 401/403 o fallos de autenticación invalidan el acceso comprobado. Un 404 limpia las inscripciones y retira el evento del listado local hasta consultar de nuevo, porque no permite distinguir una inscripción ausente de pérdida de acceso al evento. No invalida por sí solo toda la sesión.
+
+El cliente valida estructura, UUID, pertenencia al evento, detalle solicitado, estado, fecha, campos del asistente y coherencia de las páginas. Envía GET con token para la cuenta seleccionada, no-store, sin cookies y rechazando redirecciones. No hay reintentos automáticos. Consultar inscripciones no elimina el bloqueo de un alta con resultado incierto.
+
+Validación global confirmada por el mantenedor: **1.348 pruebas aprobadas** (502 API, 635 web y 211 PostgreSQL), typecheck, lint y build. git diff --check sin errores de espacios, con avisos de conversión CRLF a LF. Validación focalizada previa: bloques de 189, 95 y 149 pruebas aprobados (se solapan y no deben sumarse). La entrega añade 112 casos: 63 del cliente, 32 de pantalla y 17 de integración con eventos/sesión. Capturas de una cuenta real muestran listado de dos inscripciones, detalle con fecha local y regreso al evento. No acreditan paginación manual de más de 20 elementos, segunda cuenta real, carga ni comprobación manual completa de accesibilidad.
+
+Sin cambios de API o esquema. Fuera de alcance: búsqueda, CSV, QR, edición/cancelación de inscripciones y reconciliación automática de altas inciertas. Decisiones: [ADR-020](docs/adr/ADR-020-consulta-web-aislada-por-cuenta-y-evento.md), [ADR-021](docs/adr/ADR-021-navegacion-y-recuperacion-de-inscripciones.md), [ADR-022](docs/adr/ADR-022-validacion-de-lecturas-de-inscripciones.md).
+
+#### Resumen ejecutivo
+
+OpenEvents permite consultar asistentes inscritos desde el detalle de cada evento.<br>
+El organizador carga páginas y consulta detalles mediante la API existente.<br>
+La pantalla comunica carga, ausencia de resultados, errores y fin del recorrido.<br>
+La decisión de seguridad principal es aislar los datos por cuenta y evento y retirarlos al perder acceso.<br>
+La entrega cuenta con pruebas focalizadas y capturas del recorrido real; la validación global está aprobada y el merge sigue pendiente.
 
 ## Comandos
 
