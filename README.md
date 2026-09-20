@@ -6,11 +6,11 @@ OpenEvents es una plataforma open source para gestionar la operación de eventos
 
 La web incorpora inicio y cierre de sesión con Microsoft Entra External ID mediante MSAL. La API valida access tokens y dispone de controles reutilizables de roles. La ruta protegida `GET /api/v1/auth/me` devuelve la identidad y los roles del usuario. El botón «Comprobar acceso» solicita un access token para la API y consulta esa ruta; se verificó manualmente el rol `organizer` con un token real.
 
-`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La asignación del creador en `event_staff` está implementada; las consultas y la edición de borradores en API utilizan esa asignación. La edición web sigue pendiente.
+`GET /health` sigue público. Las rutas demo `GET /api/events/current` y `POST /api/check-ins`, así como la interfaz demo, siguen disponibles sin autenticación. La asignación del creador en `event_staff` está implementada; las consultas y la edición de borradores en API utilizan esa asignación. La web permite editar borradores y revisar conflictos de versión.
 
 Desarrollo incremental del MVP. La interfaz web y las rutas de demostración mantienen el flujo inicial de check-in. Ya están implementados el esquema PostgreSQL, las migraciones versionadas y la operación interna de creación de eventos con persistencia, verificada mediante pruebas de integración.
 
-`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; la API permite listar y consultar los eventos asignados. La web permite listar y consultar esos eventos. La API permite editar borradores con control de versión; el formulario de edición sigue pendiente.
+`POST /api/v1/events` crea eventos persistidos con un token válido y el rol `organizer`. El servidor asigna el estado `draft`. La web permite crear eventos mediante un formulario habilitado después de comprobar el rol `organizer`. La creación asigna al organizador en `event_staff`; la API permite listar y consultar los eventos asignados. La web permite listar y consultar esos eventos. La API permite editar borradores con control de versión; la web incorpora el formulario y la recuperación explícita de conflictos.
 
 ## Arquitectura inicial
 
@@ -46,7 +46,7 @@ Código QR de demostración: `OE-2027-001`.
 
 La API exige las cinco variables `ENTRA_*` y `DATABASE_URL` indicadas en la tabla. Valida la configuración y comprueba la conexión a PostgreSQL antes de escuchar solicitudes. El archivo `.env` es opcional si las variables ya están proporcionadas por el entorno. `PORT` y `HOST` conservan sus valores predeterminados.
 
-La web requiere las cinco variables `VITE_ENTRA_*`, incluido el scope de la API. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. Configura también `VITE_API_URL`: los clientes de identidad, creación y consulta no aplican un valor predeterminado.
+La web requiere las cinco variables `VITE_ENTRA_*`, incluido el scope de la API. Pueden proporcionarse mediante `apps/web/.env` o mediante el entorno al ejecutar Vite. Configura también `VITE_API_URL`: los clientes de identidad, creación, consulta y edición no aplican un valor predeterminado.
 
 Para crear los archivos locales en PowerShell, ejecuta los siguientes comandos solamente si los archivos de destino todavía no existen. Si ya existen, edítalos conservando su configuración:
 
@@ -66,7 +66,7 @@ El primer comando crea la configuración local de la API a partir de su ejemplo.
 | API | `ENTRA_WEB_CLIENT_ID` | Sin valor predeterminado | UUID de la aplicación cliente permitida. |
 | API | `ENTRA_ISSUER` | Sin valor predeterminado | Emisor esperado; URL HTTPS sin credenciales, query ni fragmento. |
 | API | `ENTRA_JWKS_URI` | Sin valor predeterminado | URL HTTPS de las claves públicas de Entra. |
-| Web | `VITE_API_URL` | Sin valor predeterminado para identidad, creación y consulta | URL base de la API; en desarrollo, `http://localhost:3001`. Para consultar identidad, crear y consultar eventos admite HTTPS o HTTP en localhost, sin credenciales, consulta ni fragmento. |
+| Web | `VITE_API_URL` | Sin valor predeterminado para identidad, creación, consulta y edición | URL base de la API; en desarrollo, `http://localhost:3001`. Para consultar identidad, crear, consultar y editar eventos admite HTTPS o HTTP en localhost, sin credenciales, consulta ni fragmento. |
 | API / herramientas de base de datos | `DATABASE_URL` | Sin valor predeterminado | URL de PostgreSQL requerida para arrancar la API, aplicar migraciones y ejecutar pruebas de integración. |
 | Web | `VITE_ENTRA_CLIENT_ID` | Sin valor predeterminado | Identificador de la aplicación web registrada como SPA en Entra. |
 | Web | `VITE_ENTRA_TENANT_ID` | Sin valor predeterminado | Identificador del tenant externo de Entra. |
@@ -416,13 +416,31 @@ Issue #31. `PATCH /api/v1/events/{eventId}` permite cambiar parcialmente nombre,
 
 El cliente envía `expectedVersion` y al menos un campo editable. Las respuestas de creación, listado, detalle y edición incluyen ahora `version`. Los eventos nuevos y existentes comienzan en 1; cada PATCH aceptado incrementa la versión, incluso si los valores enviados coinciden con los actuales. Una versión antigua devuelve 409 sin sobrescribir cambios. Cambiar solo la zona horaria conserva los instantes UTC; para cambiar la hora del evento deben enviarse las fechas correspondientes.
 
-Antes de arrancar el código actualizado, aplica `pnpm --filter @openevents/api db:migrate`. La migración `0002_brief_jocasta.sql` añade la versión obligatoria y positiva sin eliminar eventos. La web actual tolera el campo adicional, pero todavía no implementa edición ni conserva la versión para editar.
+Antes de arrancar el código actualizado, aplica `pnpm --filter @openevents/api db:migrate`. La migración `0002_brief_jocasta.sql` añade la versión obligatoria y positiva sin eliminar eventos. Desde OE-02-002D, la web valida y conserva la versión para editar.
 
 Validación local: 321 pruebas API, 263 web y 109 de integración PostgreSQL (693 en total), typecheck, lint, build y revisión de espacios aprobados. La comprobación manual con token real confirmó 401 sin token, creación 201, edición 200, rechazo de versión antigua 409, intervalo inválido 400 y consulta final 200 con versión 2. El comprobador temporal fue retirado. Los conflictos simultáneos se probaron con conexiones independientes.
 
 La actualización bloquea usuario y asignación en modo compartido y el evento para escritura durante la transacción. Se conserva el mismo 404 para evento ajeno e inexistente. Los tres conflictos de negocio usan códigos 409 distintos. Véase el [contrato](docs/architecture/api-contract.md) y los ADR [005](docs/adr/ADR-005-edicion-parcial-de-borradores.md), [006](docs/adr/ADR-006-version-y-concurrencia-de-eventos.md) y [007](docs/adr/ADR-007-autorizacion-transaccional-de-edicion.md).
 
-No se añade formulario web, activación/cierre, auditoría de cambios ni recursos Azure. CI del PR y merge pendientes.
+Esta entrega API no añadió formulario web, activación/cierre, auditoría de cambios ni recursos Azure. Integrada mediante PR #32, merge `5a1aa30`; CI aprobado antes y después del merge según el mantenedor.
+
+### Edición de borradores desde la web — OE-02-002D
+
+Issue #33, rama `feat/33-event-edit-web`. Desde «Mis eventos», abre el detalle de un borrador y pulsa «Editar evento». Se consulta de nuevo el evento antes de abrir el formulario. Al guardar se envían únicamente los campos modificados y `expectedVersion`; una respuesta confirmada actualiza detalle y listado.
+
+Si otro organizador guardó primero, el formulario conserva la propuesta y bloquea el guardado. «Consultar estado actual» muestra los valores anteriores, propuestos y actuales. Selecciona qué cambios conservar y pulsa «Continuar con la selección»; esta acción no guarda. El siguiente guardado utiliza la versión consultada y puede volver a encontrar un conflicto. Tampoco se reintenta automáticamente un guardado cuyo resultado sea incierto.
+
+Aplicar una zona horaria convierte la presentación manteniendo los mismos instantes. Después pueden ajustarse las horas. La comparación de conflictos muestra fechas UTC. Los cambios de edición permanecen solo en memoria y se descartan al cambiar de cuenta, cerrar sesión o perder acceso; cancelar una edición con cambios solicita confirmación. Cancelar una petición no garantiza revertir una escritura del servidor.
+
+Validación local: **839 pruebas aprobadas** (321 API, 409 web y 109 PostgreSQL), tipos, lint y build. Revisión de espacios sin errores; avisos de normalización CRLF/LF. Prueba manual confirmada: modificación de ubicación, conflicto entre dos pestañas, comparación y guardado explícito de la propuesta seleccionada. Aislamiento entre cuentas y errores de red se cubren automáticamente, sin declarar comprobación manual de esos casos. No añade endpoints ni migraciones. Pendientes revisión documental, commit, PR, CI y merge.
+
+#### Resumen ejecutivo
+
+OpenEvents permite a los organizadores corregir sus eventos en borrador desde la web.<br>
+La interfaz recupera datos recientes y envía cambios parciales con la versión consultada.<br>
+Si existe una edición concurrente, conserva la propuesta y exige revisar los valores actuales.<br>
+La decisión de seguridad principal es mantener la autorización por evento en el servidor y retirar los datos locales al perder acceso.<br>
+El flujo se validó con pruebas automatizadas y una comprobación manual de conflicto entre pestañas.
 
 ## Comandos
 

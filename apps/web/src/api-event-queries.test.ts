@@ -4,7 +4,7 @@ import { getApiEvent, listApiEvents } from "./api-event-queries";
 
 const event = { id: "a4444444-4444-4444-8444-444444444444", name: "Evento", slug: "evento",
   startsAt: "2027-08-27T14:00:00.000Z", endsAt: "2027-08-27T22:00:00.000Z",
-  createdAt: "2026-09-19T12:00:00.000Z", timezone: "America/Lima", location: "Lima", status: "draft" };
+  createdAt: "2026-09-19T12:00:00.000Z", timezone: "America/Lima", location: "Lima", status: "draft", version: 1 };
 const account = { homeAccountId: "account-one" } as AccountInfo;
 function setup() {
   const acquireTokenSilent = vi.fn().mockResolvedValue({ accessToken: "test-token" });
@@ -110,6 +110,16 @@ describe("event query client", () => {
   it("rejects detail for a different event", async () => {
     respond({ ...event, id: "b4444444-4444-4444-8444-444444444444" });
     await expect(getApiEvent({ ...setup().options, eventId: event.id })).rejects.toMatchObject({ kind: "invalid_response" });
+  });
+  it.each([undefined, null, 0, -1, 1.5, "1", 2147483648])("rejects invalid event version %s in detail and list", async version => {
+    respond({ ...event, version });
+    await expect(getApiEvent({ ...setup().options, eventId: event.id })).rejects.toMatchObject({ kind: "invalid_response" });
+    respond({ items: [{ ...event, version }], nextCursor: null });
+    await expect(listApiEvents(setup().options)).rejects.toMatchObject({ kind: "invalid_response" });
+  });
+  it("accepts the maximum persisted version", async () => {
+    respond({ ...event, version: 2147483647 });
+    expect((await getApiEvent({ ...setup().options, eventId: event.id })).version).toBe(2147483647);
   });
   it("handles malformed JSON", async () => {
     fetchMock.mockResolvedValue(new Response("{", { status: 200 }));

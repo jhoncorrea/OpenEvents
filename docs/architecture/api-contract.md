@@ -182,7 +182,7 @@ Issue #31. `PATCH /api/v1/events/{eventId}` requiere Bearer y JSON. No admite qu
 
 `expectedVersion` es obligatorio: entero JSON entre 1 y 2147483646, sin conversión desde texto. Debe coincidir con la versión persistida. Se exige al menos uno de `name`, `slug`, `startsAt`, `endsAt`, `timezone` y `location`. Los campos omitidos se conservan; null no elimina campos. Se rechazan campos desconocidos, incluidos `version`, `status`, `id`, `createdAt` e identidades. Las reglas de los campos son las de creación y se valida el intervalo completo tras combinar con los valores persistidos.
 
-Cambiar solo `timezone` no reinterpreta `startsAt` ni `endsAt`: son instantes UTC. Una edición aceptada, incluso sin cambios efectivos de valores, incrementa la versión en uno. Respuesta 200: evento completo con fechas UTC y `version` actualizada. POST y ambos GET también incluyen `version`, que empieza en 1. No se exige ETag ni If-Match en este contrato; la precondición viaja en el cuerpo. La web de consulta existente descarta campos adicionales y requerirá adaptación para editar.
+Cambiar solo `timezone` no reinterpreta `startsAt` ni `endsAt`: son instantes UTC. Una edición aceptada, incluso sin cambios efectivos de valores, incrementa la versión en uno. Respuesta 200: evento completo con fechas UTC y `version` actualizada. POST y ambos GET también incluyen `version`, que empieza en 1. No se exige ETag ni If-Match en este contrato; la precondición viaja en el cuerpo. Desde OE-02-002D, el cliente web valida y conserva version para editar.
 
 | HTTP | Código | Situación |
 |---|---|---|
@@ -358,3 +358,13 @@ Issue #29 consume el listado y detalle de OE-02-002A sin modificar su contrato. 
 El cliente valida identificadores, fechas UTC, zona horaria, estados y estructura de páginas; descarta campos adicionales y rechaza respuestas incoherentes. Se muestran fechas en la zona horaria del evento. No se promete orden cronológico ni una instantánea entre páginas.
 
 Las solicitudes utilizan Bearer, `cache: no-store`, `credentials: omit` y `redirect: error`. El fetch tiene un límite de 15 segundos y admite cancelación. No hay reintentos ni redirecciones de autenticación automáticas desde las consultas. Un 404 de detalle retira ese evento del listado; no distingue entre evento ajeno, eliminado o inexistente. Los errores no presentan el cuerpo original de la respuesta.
+
+## Cliente web de edición — OE-02-002D
+
+Issue #33 consume el PATCH existente sin modificar endpoints ni esquema. GET y PATCH requieren en el cliente una versión entera positiva dentro del rango integer; para editar debe permitir el siguiente incremento. El cliente valida el ID, los campos permitidos y la respuesta: mismo evento, estado draft y versión esperada más uno. Descarta datos adicionales. Usa la cuenta seleccionada, token silencioso, no-store, credentials omit y redirect error. El límite del fetch y lectura de respuesta es de 15 segundos; no cubre la espera del proveedor de identidad.
+
+Solo se envían diferencias y expectedVersion. La validación del formulario considera el intervalo completo; la API sigue siendo la autoridad. Un cambio de zona conserva los instantes antes de permitir ajustes locales. Se rechazan horas locales ambiguas o inexistentes; los instantes previamente persistidos y no modificados se conservan.
+
+Los errores 400, 401, 403, 404 y los códigos 409 conocidos se presentan mediante mensajes controlados. Un conflicto de versión conserva la propuesta y requiere consultar, comparar y seleccionar antes de volver a guardar. Una respuesta de escritura no confirmable se trata como resultado incierto: no hay reenvío automático. Consultar el estado no prueba por sí solo cuál petición produjo cada cambio. Abortar el cliente no revierte una transacción ya confirmada.
+
+El éxito actualiza detalle y listado. Al cancelar se consulta otra vez el detalle; un 404 retira el evento de la lista. La consulta tras un conflicto no reserva la versión: otro escritor puede cambiarla antes del siguiente PATCH.

@@ -267,3 +267,13 @@ La transacción bloquea primero el usuario con FOR SHARE, después su asignació
 Solo se editan borradores y expectedVersion debe coincidir. Los bloqueos son breves, limitados a la transacción; no se mantienen durante el tiempo que una persona completa un formulario. La versión detecta cambios entre lectura y escritura y no es una credencial.
 
 Evidencia: 18 pruebas de persistencia, 3 de concurrencia, 27 HTTP aisladas y 16 HTTP con PostgreSQL. Las HTTP de integración simulan Entra; la prueba manual usa sesión real y verifica creación, edición, versión obsoleta, intervalo inválido y ausencia de token. No se declara una comprobación manual entre cuentas ni una prueba automatizada específica de revocación simultánea. La auditoría completa y el rate limiting quedan pendientes.
+
+## Edición desde la web — OE-02-002D
+
+Issue #33 muestra el editor después de comprobar organizer y consultar un borrador. Este control de interfaz no concede autorización: cada PATCH aplica los controles de OE-02-002C en el servidor. Version es una precondición de concurrencia, nunca una credencial.
+
+El cliente obtiene el token para la cuenta seleccionada y comprueba que sigue siendo la misma antes y después del envío. El desmontaje cancela solicitudes y descarta respuestas tardías. Cambiar de cuenta, iniciar la salida o una interacción de sesión retira el editor. Un error de autenticación, 401 o 403 invalida el acceso comprobado y elimina los datos de consulta y edición. Un conflicto 409 conserva el editor y no invalida la sesión.
+
+Los datos del editor no se escriben en almacenamiento del navegador. El borrador de creación mantiene su mecanismo independiente por cuenta. Mientras se edita se oculta y deshabilita la creación, y se deshabilita Comprobar acceso para evitar descartar la edición por esa acción. Cerrar sesión sigue disponible; cancelar la espera no implica deshacer un PATCH enviado.
+
+Pruebas web con MSAL/API simulados verifican cuenta, scope, cancelación, respuestas tardías y recuperación de acceso. La comprobación manual utilizó una cuenta real en dos pestañas; no constituye una prueba manual de aislamiento entre dos identidades. Auditoría completa, rate limiting y pruebas de carga siguen pendientes.

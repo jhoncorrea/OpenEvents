@@ -1,22 +1,26 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { EditEventPayload } from "./api-event-edits";
+import { EventEditError } from "./event-edit-error";
 import MyEvents from "./MyEvents";
 import { EventQueryError, type ApiEvent, type ApiEventPage } from "./api-event-queries";
 
 const event: ApiEvent = { id: "a4444444-4444-4444-8444-444444444444", name: "Evento Lima", slug: "evento-lima",
   startsAt: "2027-08-27T14:00:00Z", endsAt: "2027-08-27T22:00:00Z", createdAt: "2026-09-19T12:00:00Z",
-  timezone: "America/Lima", location: "San Borja", status: "draft" };
+  timezone: "America/Lima", location: "San Borja", status: "draft", version: 1 };
 function setup() {
   return { accountKey: "account-a", enabled: true,
     loadPage: vi.fn<(cursor: string | undefined, signal: AbortSignal) => Promise<ApiEventPage>>()
       .mockResolvedValue({ items: [event], nextCursor: null }),
     loadDetail: vi.fn<(id: string, signal: AbortSignal) => Promise<ApiEvent>>().mockResolvedValue(event),
+    saveEvent: vi.fn<(id: string, input: EditEventPayload, signal: AbortSignal) => Promise<ApiEvent>>().mockResolvedValue({ ...event, name: "Nombre editado", version: 2 }),
+    onEditingChange: vi.fn(),
     onAccessInvalidated: vi.fn() };
 }
 function pending<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 async function load() { fireEvent.click(screen.getByRole("button", { name: "Cargar eventos" })); await screen.findByRole("button", { name: "Ver detalle de Evento Lima" }); }
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("MyEvents", () => {
   it("does not expose or query events while disabled", () => {
@@ -45,7 +49,7 @@ describe("MyEvents", () => {
     expect(screen.getByText("Activo")).toBeTruthy();
     expect(props.loadDetail).toHaveBeenCalledExactlyOnceWith(event.id, expect.any(AbortSignal));
     fireEvent.click(screen.getByText("Volver al listado"));
-    expect(screen.getByRole("button", { name: "Ver detalle de Evento Lima" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ver detalle de Nombre actualizado" })).toBeTruthy();
     expect(props.loadPage).toHaveBeenCalledTimes(1);
   });
   it("appends pages without duplicating repeated events", async () => {
@@ -128,5 +132,88 @@ describe("MyEvents", () => {
     await waitFor(() => expect((screen.getByText("Cargar más eventos") as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByText("Cargar más eventos")); await screen.findByRole("alert");
     expect(screen.getByText("Evento Lima")).toBeTruthy();
+  });
+});
+
+describe("MyEvents editing integration", () => {
+  async function detail() {
+    await load(); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Evento Lima" }));
+    await screen.findByText(event.id);
+  }
+  async function edit() {
+    await detail(); fireEvent.click(screen.getByRole("button", { name: "Editar evento" }));
+    await screen.findByLabelText("Nombre del evento");
+  }
+  function changeAndSave() {
+    fireEvent.change(screen.getByLabelText("Nombre del evento"), { target: { value: "Nombre editado" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  }
+  it("fetches fresh data before opening the editor and uses that version", async () => {
+    const props = setup(); props.loadDetail.mockResolvedValueOnce(event).mockResolvedValueOnce({ ...event, version: 5, name: "Más reciente" });
+    render(<MyEvents {...props} />); await edit();
+    expect((screen.getByLabelText("Nombre del evento") as HTMLInputElement).value).toBe("Más reciente");
+    expect(props.loadDetail).toHaveBeenCalledTimes(2); expect(props.onEditingChange).toHaveBeenLastCalledWith(true);
+    changeAndSave(); await waitFor(() => expect(props.saveEvent).toHaveBeenCalledWith(event.id, { expectedVersion: 5, name: "Nombre editado" }, expect.any(AbortSignal)));
+  });
+  it("updates both detail and the existing list after saving", async () => {
+    const props = setup(); render(<MyEvents {...props} />); await edit(); changeAndSave();
+    await screen.findByText("Evento actualizado correctamente.");
+    expect(screen.getByText("Nombre editado")).toBeTruthy(); expect(screen.queryByLabelText("Nombre del evento")).toBeNull();
+    expect(props.onEditingChange).toHaveBeenLastCalledWith(false);
+    fireEvent.click(screen.getByText("Volver al listado"));
+    expect(screen.getByRole("button", { name: "Ver detalle de Nombre editado" })).toBeTruthy();
+    expect(props.loadPage).toHaveBeenCalledTimes(1);
+  });
+  it.each(["active", "closed", "cancelled"] as const)("does not offer editing of %s events", async status => {
+    const props = setup(); props.loadDetail.mockResolvedValue({ ...event, status }); render(<MyEvents {...props} />); await detail();
+    expect(screen.queryByRole("button", { name: "Editar evento" })).toBeNull(); expect(props.saveEvent).not.toHaveBeenCalled();
+  });
+  it("does not open an editor if the fresh event left draft", async () => {
+    const props = setup(); props.loadDetail.mockResolvedValueOnce(event).mockResolvedValueOnce({ ...event, status: "active", version: 2 });
+    render(<MyEvents {...props} />); await detail(); fireEvent.click(screen.getByRole("button", { name: "Editar evento" }));
+    await screen.findByText("El evento ya no está en borrador y no se puede editar.");
+    expect(screen.queryByLabelText("Nombre del evento")).toBeNull(); expect(screen.getByText("Activo")).toBeTruthy();
+  });
+  it("refreshes detail after confirmed cancellation to reconcile a possible save", async () => {
+    const props = setup(); vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<MyEvents {...props} />); await edit();
+    fireEvent.change(screen.getByLabelText("Nombre del evento"), { target: { value: "Local" } });
+    props.loadDetail.mockResolvedValue({ ...event, name: "Estado vigente", version: 2 });
+    expect(screen.queryByText("Volver al listado")).toBeNull();
+    fireEvent.click(screen.getByText("Cancelar edición")); await screen.findByText("Estado vigente");
+    fireEvent.click(screen.getByText("Volver al listado")); expect(screen.getByText("Estado vigente")).toBeTruthy();
+  });
+  it("removes stale protected data when a save returns not found", async () => {
+    const props = setup(); props.saveEvent.mockRejectedValue(new EventEditError("not_found"));
+    render(<MyEvents {...props} />); await edit(); changeAndSave();
+    await screen.findByText("El evento no está disponible o ya no tienes acceso.");
+    props.loadDetail.mockRejectedValue(new EventQueryError("not_found")); fireEvent.click(screen.getByText("Volver al detalle"));
+    await screen.findByRole("alert"); fireEvent.click(screen.getByText("Volver al listado"));
+    expect(screen.queryByText("Evento Lima")).toBeNull(); expect(props.onAccessInvalidated).not.toHaveBeenCalled();
+  });
+  it("clears the browser and invalidates access after forbidden editing", async () => {
+    const props = setup(); props.saveEvent.mockRejectedValue(new EventEditError("forbidden")); render(<MyEvents {...props} />); await edit(); changeAndSave();
+    await waitFor(() => expect(props.onAccessInvalidated).toHaveBeenCalledOnce());
+    expect(screen.queryByLabelText("Nombre del evento")).toBeNull(); fireEvent.click(screen.getByText("Volver al listado"));
+    expect(screen.queryByText("Evento Lima")).toBeNull();
+  });
+  it("keeps editing state through conflict review without automatic saving", async () => {
+    const props = setup(); props.saveEvent.mockRejectedValueOnce(new EventEditError("version_conflict"));
+    render(<MyEvents {...props} />); await edit(); changeAndSave();
+    props.loadDetail.mockResolvedValue({ ...event, version: 2, location: "Cusco" });
+    fireEvent.click(await screen.findByText("Consultar estado actual")); await screen.findByText("Continuar con la selección");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Conservar mi cambio: Nombre del evento" }));
+    fireEvent.click(screen.getByText("Continuar con la selección"));
+    expect(props.saveEvent).toHaveBeenCalledTimes(1); expect(props.onEditingChange).toHaveBeenLastCalledWith(true);
+    fireEvent.click(screen.getByText("Guardar cambios"));
+    await waitFor(() => expect(props.saveEvent).toHaveBeenLastCalledWith(event.id, { expectedVersion: 2, name: "Nombre editado" }, expect.any(AbortSignal)));
+  });
+  it("aborts editing on account change and never puts the old response into the new list", async () => {
+    const props = setup(); const request = pending<ApiEvent>(); props.saveEvent.mockReturnValue(request.promise);
+    const view = render(<MyEvents {...props} />); await edit(); changeAndSave();
+    const signal = props.saveEvent.mock.calls[0][2]; view.rerender(<MyEvents {...props} accountKey="account-b" />);
+    expect(signal.aborted).toBe(true); expect(screen.queryByLabelText("Nombre del evento")).toBeNull();
+    await act(async () => request.resolve({ ...event, name: "Old account response", version: 2 }));
+    expect(screen.queryByText("Old account response")).toBeNull(); expect(screen.getByText("Cargar eventos")).toBeTruthy();
   });
 });

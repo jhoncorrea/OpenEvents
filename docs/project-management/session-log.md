@@ -2,7 +2,7 @@
 
 ## Sesión 001 — 15 de septiembre de 2026
 
-**Tiempo planificado:** 1 hora  
+**Tiempo planificado:** 1 hora
 **Objetivo:** convertir OpenEvents en un proyecto ejecutable y versionado desde cero.
 
 ### Alcance
@@ -312,3 +312,36 @@ Los bloqueos evitan revocar a mitad de una escritura que ya los obtuvo, pero no 
 ADR-005: edición parcial solo de borradores. ADR-006: versión persistida y control de concurrencia. ADR-007: autorización estable durante la escritura. Se registran contexto, decisión y consecuencias.
 
 Pendientes revisión documental y diff, commit, PR, CI y merge. Sin formulario web, activación/cierre, auditoría completa ni Azure. Tras el merge se prepararán tres preguntas senior con respuestas, párrafo ejecutivo de cinco líneas, ejemplos documentados, PDF e imagen con código OE primero.
+
+## Sesión 009 — 19 de septiembre de 2026
+
+**Objetivo:** OE-02-002D, editar eventos en borrador desde la web.
+**Issue:** #33. **Rama:** `feat/33-event-edit-web`.
+
+### Cierre anterior
+
+Issue #31 integrado mediante PR #32, merge `5a1aa30`. El mantenedor confirmó CI verde antes y después del merge, sincronizó main y eliminó la rama anterior.
+
+### Resultado y evidencia
+
+- Cliente PATCH con validación de versión, respuesta y errores controlados; sin reintentos automáticos.
+- Editor de seis campos, diferencias parciales, fechas en zona del evento y conversión que conserva instantes.
+- Recuperación explícita tras versión obsoleta o resultado incierto: consulta, comparación, selección y guardado separado.
+- Integración con detalle/listado, sesión y borrador independiente de creación. Cancelación y descarte de respuestas tardías.
+- 146 pruebas web adicionales: 409 web en total, 321 API y 109 PostgreSQL; 839 aprobadas en la validación completa aportada por el mantenedor. Tipos, lint y build aprobados. Diff sin errores de espacios, con avisos CRLF/LF.
+- Manual: ubicación cambiada a Chile; dos pestañas provocaron conflicto. La captura muestra antes A, propuesta C y actual B, versión consultada 4. El mantenedor confirmó que la selección y el guardado posterior funcionan. No se afirma una versión final verificada por consulta independiente.
+- La compilación genera archivos separados para editor y cliente PATCH, sin avisos de tamaño.
+
+### Threat modeling antes del cierre
+
+| Categoría | Escenario | Mitigación implementada y probada | Pendiente |
+|---|---|---|---|
+| Seguridad | Una respuesta tardía muestra datos de la cuenta anterior o el cliente intenta editar un evento ajeno. | Cancelación y descarte por cuenta; limpieza al perder acceso; la API mantiene autorización por evento. Pruebas automáticas de sesión y permisos. | Comprobación manual con dos identidades distintas; auditoría de cambios. |
+| Concurrencia/carga | Dos pestañas guardan la misma versión o el usuario repite el envío. | Versionado del servidor, bloqueo de doble envío y revisión explícita sin autosave. Conflicto confirmado manualmente. | Medir carga y esperas; rate limiting. El bloqueo del formulario no limita solicitudes de clientes externos. |
+| Experiencia | Se corta la red después de confirmar la escritura y el usuario desconoce si guardó. | Mensaje de resultado incierto, propuesta en memoria, consulta y comparación antes de reenviar. Pruebas automáticas; no se afirma prueba manual de corte de red. | Ensayo manual de pérdida de respuesta; una recarga descarta la propuesta y no hay garantía de idempotencia. |
+
+### Decisiones y pendientes
+
+ADR-008: recuperación explícita de conflictos y resultados inciertos. ADR-009: aislamiento de edición por cuenta y estado solo en memoria. ADR-010: conversión horaria que conserva instantes. Pendientes revisión documental y diff, commit, PR, CI y merge. No se añaden migraciones, endpoints, cambios de estado, administración de organizadores ni recursos Azure.
+
+Después del merge: informe con tres preguntas senior y respuestas, resumen ejecutivo, dos ejemplos documentados por decisión y resumen visual. Nombre de entrega con código OE primero: `OpenEvents_OE-02-002D_Edicion_web_borradores_PR<número>`; el número se completará cuando exista el PR.
