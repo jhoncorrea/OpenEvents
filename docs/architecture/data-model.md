@@ -54,6 +54,7 @@ erDiagram
         uuid id PK
         uuid event_id FK
         uuid attendee_id FK
+        string email_normalized
         string status
         string source
         timestamptz created_at
@@ -92,6 +93,7 @@ erDiagram
 
 | Restricción | Propósito |
 |---|---|
+| `UNIQUE(event_id, email_normalized)` en `registration` | Impedir duplicados de correo dentro de cada evento, incluidos cancelados |
 | `UNIQUE(event_id, attendee_id)` en `registration` | Evitar doble inscripción accidental al mismo evento |
 | `UNIQUE(registration_id)` en `qr_credential` | Como máximo una credencial por inscripción, independientemente de su estado |
 | `UNIQUE(token_hash)` en `qr_credential` | Evitar credenciales repetidas |
@@ -190,3 +192,14 @@ No se asignan automáticamente eventos anteriores ni se convierten identidades a
 La migración `0002_brief_jocasta.sql` añade `event.version` con valor inicial 1 para eventos existentes y nuevos, sin eliminar registros. Se versionan SQL, snapshot 0002 y journal juntos. Aplicar la migración antes de ejecutar código que seleccione la nueva columna.
 
 Cada PATCH aceptado incrementa version en uno dentro de la misma transacción que los datos. Version no representa fecha, estado, identidad ni historial de auditoría. No hay trigger que incremente la versión ante SQL directo: los futuros escritores deben participar explícitamente en este protocolo. Se reservan valores de entrada hasta 2147483646 para que el incremento quepa en integer; alcanzar el límite requerirá evolución del esquema.
+
+
+## Inscripciones por evento — OE-03-001A
+
+`registration.email_normalized` es obligatorio y forma la clave única `registration_event_email_unique` junto con event_id. El CHECK exige representación ASCII sin espacios, con @, minúsculas bajo collation C y longitud máxima 254. El validador de API aplica reglas de formato adicionales; el CHECK no equivale a validación completa del correo. Se mantiene UNIQUE(event_id, attendee_id).
+
+El campo es una clave de deduplicación de inscripción, no una identidad global. attendee.email sigue sin unicidad global. La nueva operación crea un perfil independiente por inscripción; el mismo correo en dos eventos no comparte ni modifica datos de perfil. Una inscripción cancelada sigue ocupando la clave; reactivar/corregir correos requiere un flujo futuro que mantenga coherencia entre campos.
+
+La migración 0003 añade el campo nullable, completa desde attendee con recorte de espacios ASCII y minúsculas, valida datos históricos y después agrega NOT NULL, UNIQUE y CHECK. Si encuentra valores incompatibles o duplicados por evento, falla dentro de la transacción de migración; no fusiona ni elimina datos. Revisar los registros afectados antes de repetir. El backfill no cambia attendee.email ni full_name y no aplica todas las reglas sintácticas de la API a los correos históricos.
+
+La inserción de attendee y registration es atómica. Los bloqueos compartidos de autorización y estado no serializan entre sí todas las inscripciones; la restricción única decide los conflictos por correo. Los errores se propagan tras revertir y solo la restricción de correo se traduce al conflicto específico. No se incrementa event.version.

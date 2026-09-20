@@ -84,8 +84,8 @@ describe("PostgreSQL schema constraints", () => {
 
     await client.query(
       `INSERT INTO registration
-        (id, event_id, attendee_id, source)
-       VALUES ($1, $2, $3, $4)`,
+        (id, event_id, attendee_id, source, email_normalized)
+       VALUES ($1, $2, $3, $4, 'attendee@example.invalid')`,
       [registrationId, eventId, attendeeId, "test"],
     );
   });
@@ -117,8 +117,8 @@ describe("PostgreSQL schema constraints", () => {
     await expect(
       client.query(
         `INSERT INTO registration
-          (event_id, attendee_id, source)
-         VALUES ($1, $2, $3)`,
+          (event_id, attendee_id, source, email_normalized)
+         VALUES ($1, $2, $3, 'different@example.invalid')`,
         [eventId, attendeeId, "test"],
       ),
     ).rejects.toMatchObject({
@@ -210,8 +210,8 @@ describe("PostgreSQL schema constraints", () => {
 
     await client.query(
       `INSERT INTO registration
-        (id, event_id, attendee_id, source)
-       VALUES ($1, $2, $3, $4)`,
+        (id, event_id, attendee_id, source, email_normalized)
+       VALUES ($1, $2, $3, $4, 'second@example.invalid')`,
       [secondRegistrationId, eventId, secondAttendeeId, "test"],
     );
 
@@ -269,6 +269,46 @@ describe("PostgreSQL schema constraints", () => {
       code: "23503",
       constraint: "registration_attendee_id_attendee_id_fk",
     });
+  });
+
+
+  it("rejects another attendee with the same email key in the same event", async () => {
+    const otherId = randomUUID();
+    await client.query('INSERT INTO attendee (id, full_name, email) VALUES ($1, $2, $3)',
+      [otherId, "Other name", "ATTENDEE@example.invalid"]);
+    await expect(client.query(
+      "INSERT INTO registration (event_id, attendee_id, source, email_normalized) VALUES ($1, $2, 'manual', 'attendee@example.invalid')",
+      [eventId, otherId],
+    )).rejects.toMatchObject({ code: "23505", constraint: "registration_event_email_unique" });
+  });
+
+  it("allows the same email key in another event", async () => {
+    const otherEventId = randomUUID();
+    await client.query(`INSERT INTO event (id, name, slug, starts_at, ends_at, timezone, location)
+      SELECT $1, name, $2, starts_at, ends_at, timezone, location FROM event WHERE id = $3`,
+      [otherEventId, `test-${otherEventId}`, eventId]);
+    const result = await client.query(`INSERT INTO registration (event_id, attendee_id, source, email_normalized)
+      VALUES ($1, $2, 'manual', 'attendee@example.invalid') RETURNING event_id`, [otherEventId, attendeeId]);
+    expect(result.rows).toEqual([{ event_id: otherEventId }]);
+  });
+
+  it.each(["ANA@example.invalid", " ana@example.invalid", "ana@example.invalid ", "ana", "á@example.invalid", "a".repeat(250) + "@test.invalid"])("rejects a noncanonical registration email key %s", async key => {
+      await expect(client.query('UPDATE registration SET email_normalized = $1 WHERE id = $2', [key, registrationId]))
+        .rejects.toMatchObject({ code: "23514", constraint: "registration_email_normalized_check" });
+    });
+
+  it("requires a registration email key", async () => {
+    await expect(client.query('UPDATE registration SET email_normalized = NULL WHERE id = $1', [registrationId]))
+      .rejects.toMatchObject({ code: "23502" });
+  });
+
+  it("keeps the email key reserved when the registration is cancelled", async () => {
+    await client.query("UPDATE registration SET status = 'cancelled' WHERE id = $1", [registrationId]);
+    const otherId = randomUUID();
+    await client.query('INSERT INTO attendee (id, full_name, email) VALUES ($1, $2, $3)', [otherId, "Other", "attendee@example.invalid"]);
+    await expect(client.query(`INSERT INTO registration (event_id, attendee_id, source, email_normalized)
+      VALUES ($1, $2, 'manual', 'attendee@example.invalid')`, [eventId, otherId]))
+      .rejects.toMatchObject({ code: "23505", constraint: "registration_event_email_unique" });
   });
 
 });

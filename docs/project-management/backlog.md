@@ -131,7 +131,7 @@ La autorización debe aplicarse en la API. Ocultar elementos o restringir navega
 
 OE-01-002B prepara una dependencia de OE-02-002. La consulta y edición deberán aplicar expresamente los permisos por evento. La asignación automática del creador no completa la protección de las demás rutas ni la administración de personal.
 
-OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperable: existe persistencia y confirmación de creación; la recuperación mediante API se integró en OE-02-002A y la pantalla de consulta se integró en OE-02-002B. La edición API de borradores está integrada en OE-02-002C; la edición web está implementada y validada localmente en OE-02-002D, pendiente de integración.
+OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperable: existe persistencia y confirmación de creación; la recuperación mediante API se integró en OE-02-002A y la pantalla de consulta se integró en OE-02-002B. La edición API de borradores está integrada en OE-02-002C; la edición web está integrada en OE-02-002D mediante PR #34, merge `9651330`.
 
 ## Desglose de OE-02-002 — Consulta y edición
 
@@ -140,6 +140,15 @@ OE-02-001C ya está integrado. RF-EVT-001 exige un evento persistido y recuperab
 | OE-02-002A | Listado paginado y detalle API para organizadores con autorización por evento. | Issue #27 cerrado; PR #28 integrado en `main`, merge `bf74848`. CI aprobado según comprobación del mantenedor. Validación local previa: 512 pruebas, typecheck, lint y build. |
 | OE-02-002B | Listado y detalle web, paginación, estados y aislamiento por cuenta. | Issue #29 cerrado; PR #30 integrado en main, merge `d91995d`. CI aprobado según comprobación del mantenedor. Validación local previa: 581 pruebas, typecheck, lint y build. |
 | OE-02-002C | PATCH de borradores con permisos por evento y control de versión. | Issue #31 integrado mediante PR #32, merge `5a1aa30`. CI aprobado antes y después del merge según el mantenedor; main sincronizado y rama eliminada. |
-| OE-02-002D | Edición desde la web y resolución de conflictos de versión. | Issue #33, rama `feat/33-event-edit-web`. 839 pruebas globales, tipos, lint y build aprobados. Edición y recuperación de conflicto entre pestañas verificadas manualmente. Pendientes revisión documental, commit, PR, CI y merge. |
+| OE-02-002D | Edición desde la web y resolución de conflictos de versión. | Issue #33 integrado mediante PR #34, merge `9651330`. CI aprobado antes y después del merge según el mantenedor. Main sincronizado y rama local eliminada. |
 
 A utiliza las asignaciones de OE-01-002B y añade recuperación mediante API. B incorpora la pantalla de consulta. C añade edición API solo de borradores y D incorpora la interfaz de edición, pendiente de merge. No se añaden estimaciones independientes.
+
+
+## Desglose de OE-03-001 — Registro manual
+
+| Parte | Alcance | Seguimiento |
+|---|---|---|
+| OE-03-001A | API de inscripción autorizada por evento, deduplicación y persistencia atómica. | Issue #35, rama feat/35-attendee-registration-api. 977 pruebas globales, tipos, lint y build aprobados. Siete comprobaciones manuales y persistencia SQL confirmadas. Pendientes revisión documental, commit, PR, CI y merge. |
+
+La historia principal mantiene su estimación original. Esta entrega API no completa el recorrido web ni todo RF-ATT-001: queda planificar formulario y consulta/listado, contrastando los requisitos. No incluye CSV, QR, check-in persistido ni notificaciones. Depende del esquema y de la autorización por evento incorporada en entregas anteriores.

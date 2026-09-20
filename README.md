@@ -432,7 +432,7 @@ Si otro organizador guardó primero, el formulario conserva la propuesta y bloqu
 
 Aplicar una zona horaria convierte la presentación manteniendo los mismos instantes. Después pueden ajustarse las horas. La comparación de conflictos muestra fechas UTC. Los cambios de edición permanecen solo en memoria y se descartan al cambiar de cuenta, cerrar sesión o perder acceso; cancelar una edición con cambios solicita confirmación. Cancelar una petición no garantiza revertir una escritura del servidor.
 
-Validación local: **839 pruebas aprobadas** (321 API, 409 web y 109 PostgreSQL), tipos, lint y build. Revisión de espacios sin errores; avisos de normalización CRLF/LF. Prueba manual confirmada: modificación de ubicación, conflicto entre dos pestañas, comparación y guardado explícito de la propuesta seleccionada. Aislamiento entre cuentas y errores de red se cubren automáticamente, sin declarar comprobación manual de esos casos. No añade endpoints ni migraciones. Pendientes revisión documental, commit, PR, CI y merge.
+Validación local: **839 pruebas aprobadas** (321 API, 409 web y 109 PostgreSQL), tipos, lint y build. Revisión de espacios sin errores; avisos de normalización CRLF/LF. Prueba manual confirmada: modificación de ubicación, conflicto entre dos pestañas, comparación y guardado explícito de la propuesta seleccionada. Aislamiento entre cuentas y errores de red se cubren automáticamente, sin declarar comprobación manual de esos casos. No añade endpoints ni migraciones. Integrada mediante PR #34, merge `9651330`; CI aprobado antes y después del merge según el mantenedor.
 
 #### Resumen ejecutivo
 
@@ -441,6 +441,28 @@ La interfaz recupera datos recientes y envía cambios parciales con la versión 
 Si existe una edición concurrente, conserva la propuesta y exige revisar los valores actuales.<br>
 La decisión de seguridad principal es mantener la autorización por evento en el servidor y retirar los datos locales al perder acceso.<br>
 El flujo se validó con pruebas automatizadas y una comprobación manual de conflicto entre pestañas.
+
+### Registro de asistentes mediante API — OE-03-001A
+
+Issue #35, rama `feat/35-attendee-registration-api`. `POST /api/v1/events/{eventId}/registrations` recibe `fullName` y `email`. Exige token válido, organizer global, usuario local activo y asignación organizer al evento. Admite eventos draft y active; rechaza closed y cancelled. El servidor fija estado confirmed y origen manual.
+
+El nombre se recorta y valida; el correo ASCII se recorta y convierte a minúsculas, sin eliminar puntos ni sufijos con +. Esta normalización es una política del producto, no una verificación de propiedad del correo. Cada inscripción crea un perfil independiente; no se buscan ni actualizan asistentes de otros eventos por su correo.
+
+Aplica `pnpm --filter @openevents/api db:migrate` antes de iniciar la API actualizada. La migración `0003_registration_event_email.sql` completa `registration.email_normalized` y exige unicidad por evento. Si detecta datos históricos incompatibles o duplicados, se detiene para revisión, sin fusionar ni borrar perfiles automáticamente. Las inscripciones canceladas conservan la reserva del correo.
+
+Una transacción crea asistente e inscripción; un conflicto devuelve 409 y revierte el perfil recién insertado. Bloqueos compartidos sobre usuario, asignación y evento coordinan cambios concurrentes de permisos o estado. No hay idempotencia de respuesta: si se pierde una respuesta, un reenvío puede devolver 409 aunque el primer envío haya tenido éxito.
+
+Validación global aportada por el mantenedor: **977 pruebas aprobadas** (397 API, 409 web y 171 PostgreSQL), tipos, lint y build; diff sin errores de espacios, con avisos CRLF/LF. Prueba manual: siete comprobaciones correctas y una consulta SQL con una sola inscripción confirmed/manual y correo normalizado. Comprobador temporal eliminado. Pendientes revisión documental, commit, PR, CI y merge.
+
+Esta entrega no incorpora formulario web, listado de inscripciones, importación CSV, QR ni envío de correos. RF-ATT-001 y la historia OE-03-001 requieren contrastar el recorrido completo antes de cerrarse. Véanse el [contrato](docs/architecture/api-contract.md) y los ADR [011](docs/adr/ADR-011-identidad-y-unicidad-de-inscripciones.md), [012](docs/adr/ADR-012-inscripcion-atomica-y-autorizada.md) y [013](docs/adr/ADR-013-contrato-minimo-de-inscripcion.md).
+
+#### Resumen ejecutivo
+
+OpenEvents permite registrar asistentes mediante una API restringida a los organizadores del evento.<br>
+La operación crea el perfil y su inscripción en una transacción de PostgreSQL.<br>
+Una restricción por evento y correo normalizado impide duplicados incluso ante solicitudes simultáneas.<br>
+La decisión principal de seguridad es verificar permisos dentro de la transacción y no reutilizar perfiles de otros eventos por correo.<br>
+La entrega se validó con pruebas automatizadas, una sesión real y una consulta directa de persistencia.
 
 ## Comandos
 

@@ -345,3 +345,31 @@ Issue #31 integrado mediante PR #32, merge `5a1aa30`. El mantenedor confirmó CI
 ADR-008: recuperación explícita de conflictos y resultados inciertos. ADR-009: aislamiento de edición por cuenta y estado solo en memoria. ADR-010: conversión horaria que conserva instantes. Pendientes revisión documental y diff, commit, PR, CI y merge. No se añaden migraciones, endpoints, cambios de estado, administración de organizadores ni recursos Azure.
 
 Después del merge: informe con tres preguntas senior y respuestas, resumen ejecutivo, dos ejemplos documentados por decisión y resumen visual. Nombre de entrega con código OE primero: `OpenEvents_OE-02-002D_Edicion_web_borradores_PR<número>`; el número se completará cuando exista el PR.
+
+## OE-03-001A — Registro de asistentes por API (Issue #35)
+
+### Punto de partida y estado
+
+OE-02-002D se integró mediante PR #34, merge 9651330. El mantenedor confirmó CI verde antes y después, sincronizó main y eliminó la rama local. Issue #35 se desarrolla en feat/35-attendee-registration-api. Implementación validada localmente; no se declara PR, CI ni merge de esta entrega todavía.
+
+### Resultado y evidencia
+
+- POST protegido por organizer global, identidad local activa y asignación organizer al evento; admite draft/active.
+- Cuerpo estricto fullName/email, normalización explícita; status confirmed y source manual fijados por servidor.
+- Migración 0003, unicidad por evento/correo y perfiles independientes. Transacción sin asistentes huérfanos ante conflicto o fallo.
+- Bloqueos compartidos coordinan autorización y estado; siete pruebas de concurrencia con conexiones independientes.
+- Validación global enviada por el mantenedor: 397 API + 409 web + 171 integración PostgreSQL = 977 pruebas aprobadas. Typecheck, lint y build aprobados. Diff sin errores de espacios; avisos CRLF/LF.
+- Manual con sesión real: 401 sin token, evento 201, inscripción 201, duplicado 409, estado e identidad suministrados por cliente 400, evento inexistente 404. Al inicio la API antigua respondió 404; reiniciarla recompiló y habilitó la ruta. Esos intentos iniciales se detuvieron antes de crear datos.
+- SQL confirmó una sola inscripción 1a79eced-c195-44ae-b006-5bbe15189556 para el evento 33f82177-3ac6-4969-8be2-de9710100103: confirmed/manual, nombre original y correo normalizado. Son datos ficticios locales; no se enviaron correos ni QR. El comprobador temporal fue eliminado.
+
+### Threat modeling antes del cierre
+
+| Categoría | Escenario | Mitigación comprobada | Falta agregar |
+|---|---|---|---|
+| Seguridad | Un organizer cambia el UUID para inscribir en un evento ajeno o conocer perfiles de otro evento. | Autorización por evento dentro de la transacción, mismo 404 ajeno/inexistente, sin perfiles globales por correo; pruebas de permisos y aislamiento. | Prueba manual con dos cuentas reales, auditoría y límites de peticiones. |
+| Concurrencia/carga | Dos solicitudes inscriben el mismo correo o coinciden con revocación/cierre. | UNIQUE por evento/correo, rollback de ambas inserciones y bloqueos compartidos; pruebas concurrentes deterministas. | Pruebas de carga, métricas de espera y política operativa de timeouts/deadlocks; las pruebas funcionales no acreditan capacidad. |
+| Experiencia | Se confirma la inscripción pero se pierde la respuesta; repetir devuelve 409. | Unicidad impide otra inscripción y el error no expone el perfil anterior. Mitigación parcial: no recupera la respuesta perdida. | Consulta autorizada y flujo web de recuperación; evaluar clave de idempotencia antes de habilitar reintentos automáticos. |
+
+### Decisiones y próximos pasos
+
+ADR-011: identidad y unicidad por evento. ADR-012: autorización y creación atómicas. ADR-013: contrato mínimo y errores sin datos personales. Pendientes revisión documental y diff, commit, PR, CI y merge. Después del merge se generará el informe con tres preguntas senior, respuestas ideales, dos ejemplos documentados por decisión y resumen visual. Nombre base: OpenEvents_OE-03-001A_Registro_asistentes_API_PR<número>.

@@ -2,8 +2,9 @@
 
 Este documento describe la API objetivo del MVP. No todas las rutas ni convenciones aquí propuestas están implementadas.
 
-## Estado implementado — OE-01-002A/B, OE-02-001B/C y OE-02-002A/B/C
+## Estado implementado — OE-01-002A/B, OE-02-001B/C, OE-02-002A/B/C/D y OE-03-001A
 
+- `POST /api/v1/events/{eventId}/registrations` registra un asistente con autorización por evento; contrato detallado al final.
 - `GET /health` es público.
 - `GET /api/v1/auth/me` requiere un access token válido para la API, la aplicación cliente permitida y el scope `access_as_user`. Devuelve la identidad y los roles reconocidos; no exige un rol específico.
 - `GET /api/events/current` y `POST /api/check-ins` son rutas demo que siguen abiertas.
@@ -255,6 +256,8 @@ No requiere autenticación y no expone secretos.
 
 ## 4. Asistentes e inscripciones
 
+Solo el POST de creación está implementado en OE-03-001A. Importación, consultas y emisión de QR de esta tabla siguen siendo objetivos.
+
 | Método | Ruta | Rol mínimo | Propósito |
 |---|---|---|---|
 | POST | `/api/v1/events/{eventId}/registrations` | Organizer | Crear inscripción |
@@ -368,3 +371,49 @@ Solo se envían diferencias y expectedVersion. La validación del formulario con
 Los errores 400, 401, 403, 404 y los códigos 409 conocidos se presentan mediante mensajes controlados. Un conflicto de versión conserva la propuesta y requiere consultar, comparar y seleccionar antes de volver a guardar. Una respuesta de escritura no confirmable se trata como resultado incierto: no hay reenvío automático. Consultar el estado no prueba por sí solo cuál petición produjo cada cambio. Abortar el cliente no revierte una transacción ya confirmada.
 
 El éxito actualiza detalle y listado. Al cancelar se consulta otra vez el detalle; un 404 retira el evento de la lista. La consulta tras un conflicto no reserva la versión: otro escritor puede cambiarla antes del siguiente PATCH.
+
+
+## Registro implementado — OE-03-001A (Issue #35)
+
+`POST /api/v1/events/{eventId}/registrations`. UUID válido, sin parámetros de consulta. Autenticación antes de analizar el cuerpo; rol organizer global, usuario local activo y asignación organizer. El estado del evento debe ser draft o active. Se usa `Cache-Control: no-store`.
+
+Cuerpo JSON estricto (no se admiten propiedades adicionales):
+
+```json
+{"fullName":"Ana Pérez","email":"ana@example.com"}
+```
+
+`fullName`: texto recortado, 1–200 caracteres según el validador, sin caracteres Unicode de control o formato. `email`: texto ASCII recortado, formato de correo válido, máximo 254 caracteres y parte local hasta 64; se convierte a minúsculas. Se conservan puntos y +. No verifica que la persona controle ese buzón. Límite de cuerpo: 4096 bytes.
+
+Respuesta 201, sin exponer la clave interna email_normalized ni campos adicionales:
+
+```json
+{
+  "id":"11111111-1111-4111-8111-111111111111",
+  "eventId":"22222222-2222-4222-8222-222222222222",
+  "status":"confirmed",
+  "source":"manual",
+  "createdAt":"2026-09-19T03:00:00.000Z",
+  "attendee":{
+    "id":"33333333-3333-4333-8333-333333333333",
+    "fullName":"Ana Pérez",
+    "email":"ana@example.com"
+  }
+}
+```
+
+Errores planos `{code,message}` sin cuerpo original, correo, SQL ni detalles del proveedor:
+
+| HTTP | Código | Condición |
+|---|---|---|
+| 400 | INVALID_REGISTRATION_INPUT | UUID, consulta o cuerpo inválidos, incluido JSON mal formado. |
+| 401 | UNAUTHORIZED | Token ausente/inválido o identidad inválida; WWW-Authenticate: Bearer. |
+| 403 | FORBIDDEN | Falta organizer global o usuario local deshabilitado. |
+| 404 | EVENT_NOT_FOUND | Usuario local desconocido, evento inexistente o sin asignación organizer; mismo mensaje. |
+| 409 | REGISTRATION_EMAIL_CONFLICT | El evento ya tiene una inscripción para el correo normalizado, también si está cancelada. |
+| 409 | EVENT_REGISTRATION_NOT_ALLOWED | Evento closed o cancelled. |
+| 413 | PAYLOAD_TOO_LARGE | Cuerpo mayor que el límite. |
+| 415 | UNSUPPORTED_MEDIA_TYPE | Tipo de contenido no admitido por el parser. |
+| 500 | INTERNAL_SERVER_ERROR | Fallo interno, sin exponer datos personales. |
+
+No se aprovisiona al organizador en esta ruta. Se crea un asistente nuevo por inscripción y se guardan ambas filas atómicamente; un fallo revierte ambas. No cambia la versión del evento. El mismo correo puede registrarse en otros eventos con perfiles independientes. No hay reintento automático, clave de idempotencia, envío de correo ni generación de QR. No se garantiza repetir la respuesta original tras perderla: la unicidad evita duplicados, pero el reenvío puede responder 409.

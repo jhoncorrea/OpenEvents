@@ -1,3 +1,4 @@
+import { registerAttendeeRoutes, type RegisterAttendeeOperation } from "./modules/registrations/registration-routes.js";
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { z } from "zod";
@@ -21,6 +22,7 @@ interface BuildAppOptions {
   createEvent: CreateEventOperation;
   eventQueries?: EventQueryOperations;
   editEvent?: EditEventOperation;
+  registerAttendee?: RegisterAttendeeOperation;
 }
 
 export function buildApp({
@@ -29,6 +31,7 @@ export function buildApp({
   createEvent,
   eventQueries,
   editEvent,
+  registerAttendee,
 }: BuildAppOptions) {
   const app = Fastify({
     logger: logger
@@ -66,6 +69,8 @@ export function buildApp({
     createEvent,
   });
 
+  if (registerAttendee) registerAttendeeRoutes(app, verifyAccessToken, registerAttendee);
+
   if (editEvent) registerEventEditRoutes(app, verifyAccessToken, editEvent);
 
   if (eventQueries) {
@@ -93,7 +98,7 @@ export function buildApp({
     if (!parsed.success) {
       return reply.code(400).send({
         status: "invalid",
-        message: "Ingresa un código QR válido.",
+        message: "Ingresa un cÃ³digo QR vÃ¡lido.",
       });
     }
 
