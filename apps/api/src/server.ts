@@ -1,3 +1,4 @@
+import { listEventsForOperator, getEventForOperator } from "./modules/events/query-events-for-operator.js";
 import { searchRegistrationsForStaff } from "./modules/registrations/search-registrations-for-staff.js";
 import { importRegistrationCsvIdempotently, queryRegistrationCsvImport } from "./modules/registrations/registration-csv-idempotency.js";
 import { listRegistrationsForOrganizer, getRegistrationForOrganizer } from "./modules/registrations/query-registrations-for-organizer.js";
@@ -42,6 +43,10 @@ const app = buildApp({
   registrationQueries: {
     list: (id, input, actor) => listRegistrationsForOrganizer(database.db, id, input, actor),
     get: (id, registrationId, actor) => getRegistrationForOrganizer(database.db, id, registrationId, actor),
+  },
+  operatorEventQueries: {
+    list: (input, actor) => listEventsForOperator(database.db, input, actor),
+    get: (id, actor) => getEventForOperator(database.db, id, actor),
   },
   eventQueries: {
     list: (input, actor) => listEventsForOrganizer(database.db, input, actor),

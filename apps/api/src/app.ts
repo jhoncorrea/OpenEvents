@@ -1,3 +1,4 @@
+import { registerOperatorEventQueryRoutes, type OperatorEventQueryOperations } from "./modules/events/operator-event-query-routes.js";
 import { registerRegistrationSearchRoutes, type RegistrationSearchOperation } from "./modules/registrations/registration-search-routes.js";
 import { registerRegistrationCsvRoutes, type RegistrationCsvOperations } from "./modules/registrations/registration-csv-routes.js";
 import { registerRegistrationQueryRoutes, type RegistrationQueryOperations } from "./modules/registrations/registration-query-routes.js";
@@ -23,6 +24,7 @@ interface BuildAppOptions {
   logger?: boolean;
   verifyAccessToken: AccessTokenVerifier;
   createEvent: CreateEventOperation;
+  operatorEventQueries?: OperatorEventQueryOperations;
   eventQueries?: EventQueryOperations;
   registrationQueries?: RegistrationQueryOperations;
   registrationCsv?: RegistrationCsvOperations;
@@ -36,6 +38,7 @@ export function buildApp({
   verifyAccessToken,
   createEvent,
   eventQueries,
+  operatorEventQueries,
   registrationQueries,
   registrationCsv,
   registrationSearch,
@@ -89,6 +92,8 @@ export function buildApp({
   if (registerAttendee) registerAttendeeRoutes(app, verifyAccessToken, registerAttendee);
 
   if (editEvent) registerEventEditRoutes(app, verifyAccessToken, editEvent);
+
+  if (operatorEventQueries) registerOperatorEventQueryRoutes(app, verifyAccessToken, operatorEventQueries);
 
   if (eventQueries) {
     registerEventQueryRoutes(app, verifyAccessToken, eventQueries);
