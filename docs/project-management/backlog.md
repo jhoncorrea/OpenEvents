@@ -152,6 +152,15 @@ A utiliza las asignaciones de OE-01-002B y añade recuperación mediante API. B 
 | OE-03-001A | API de inscripción autorizada por evento, deduplicación y persistencia atómica. | Issue #35 integrado mediante PR #36, merge `4d6d14c`. CI aprobado según el mantenedor; main sincronizado y rama eliminada. Validación previa: 977 pruebas. |
 | OE-03-001B | Formulario web de inscripción, confirmación validada, duplicados y aislamiento por cuenta. | Issue #37 integrado mediante PR #38, merge `6fdd8b0`. CI aprobado según el mantenedor; main sincronizado y rama eliminada. Validación previa: 1.091 pruebas. |
 | OE-03-001C | Listado y detalle de inscripciones mediante API con autorización por evento. | Issue #39 integrado mediante PR #40, merge `72a91f4`. CI verde según el mantenedor; main sincronizado y rama eliminada. Validación previa: 1.236 pruebas, smoke de ocho casos y práctica Postman. |
-| OE-03-001D | Consulta/listado de inscripciones desde la web. | Issue #41, rama `feat/41-registration-query-web`. Listado/detalle, paginación y aislamiento por cuenta/evento implementados; pruebas focalizadas y capturas manuales disponibles. Validación global: 1.348 pruebas (502 API, 635 web y 211 PostgreSQL), tipos, lint, build y diff aprobados. Pendientes commit, PR, CI y merge. |
+| OE-03-001D | Consulta/listado de inscripciones desde la web. | Issue #41 integrado mediante PR #42, merge `2d40ac2`. 1.348 pruebas globales aprobadas. CI de main ejecución #43: Success según el mantenedor; main sincronizado y rama eliminada. |
 
-La historia principal mantiene su estimación original. A incorpora el alta API, B el formulario web y C las consultas API. La interfaz de listado se implementa en D (Issue #41), pendiente de integración; no se declara completa la historia principal ni todo RF-ATT-001. No incluye CSV, QR, check-in persistido ni notificaciones. Depende del esquema y de la autorización por evento incorporada en entregas anteriores.
+La historia principal mantiene su estimación original. A incorpora el alta API, B el formulario web y C las consultas API. La interfaz de listado quedó integrada en D (Issue #41, PR #42); no se declara completa la historia principal ni todo RF-ATT-001. No incluye CSV, QR, check-in persistido ni notificaciones. Depende del esquema y de la autorización por evento incorporada en entregas anteriores.
+
+
+## Desglose de OE-03-002 — Importación CSV
+
+| Parte | Alcance | Seguimiento |
+|---|---|---|
+| OE-03-002A | Validador interno de bytes CSV, normalización y reporte de errores sin escrituras. | Issue #43, rama `feat/43-registration-csv-validation`. Validación global confirmada por el mantenedor: 1.404 pruebas (558 API, 635 web y 211 de integración), typecheck, lint y build aprobados; práctica CSV válida/inválida y git diff --check correctos. Pendientes commit, PR, CI y merge. |
+
+Las siguientes entregas deben planificar autorización por evento, importación transaccional, conflictos persistidos/concurrentes, recuperación/idempotencia, endpoint y web. No se asignan números de issue ni se declaran implementadas. A no completa RF-ATT-002 ni la historia principal y no añade puntos a la estimación original.

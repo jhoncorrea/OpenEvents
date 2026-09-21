@@ -515,7 +515,7 @@ La entrega incorpora pruebas automatizadas y verificaciones reales en consola y 
 
 ### Consulta de inscripciones desde la web — OE-03-001D (Issue #41)
 
-Implementada y validada globalmente en `feat/41-registration-query-web`; pendientes commit, PR, CI y merge.
+Integrada mediante PR #42, merge `2d40ac2`. CI de main ejecución #43: Success según el mantenedor; main sincronizado y rama eliminada localmente y en remoto.
 
 Recorrido: **Comprobar acceso → Cargar eventos → Ver detalle → Ver inscripciones → Cargar inscripciones → Ver inscripción**. Al abrir y al volver se consulta de nuevo el evento. Se permite consultar en draft, active, closed y cancelled; los permisos siguen aplicándose en cada GET de la API.
 
@@ -537,7 +537,17 @@ OpenEvents permite consultar asistentes inscritos desde el detalle de cada event
 El organizador carga páginas y consulta detalles mediante la API existente.<br>
 La pantalla comunica carga, ausencia de resultados, errores y fin del recorrido.<br>
 La decisión de seguridad principal es aislar los datos por cuenta y evento y retirarlos al perder acceso.<br>
-La entrega cuenta con pruebas focalizadas y capturas del recorrido real; la validación global está aprobada y el merge sigue pendiente.
+La entrega cuenta con pruebas focalizadas y capturas del recorrido real; la validación global y el CI posterior al merge están aprobados.
+
+### Validación interna de CSV — OE-03-002A (Issue #43)
+
+Implementada en `feat/43-registration-csv-validation`; validación global aprobada; pendientes commit, PR, CI y merge. `validateRegistrationCsv(bytes)` recibe Uint8Array (incluido Buffer), valida el archivo y devuelve filas normalizadas únicamente si todo es válido. No importa inscripciones, no accede a PostgreSQL ni ofrece endpoint HTTP o pantalla nueva.
+
+Contrato: UTF-8 estricto con BOM inicial opcional, coma, LF/CRLF, encabezados fullName,email en orden; máximo 1 MiB y 500 registros de datos. Admite campos entre comillas y comillas escapadas. Reutiliza las reglas del alta manual y detecta correos repetidos dentro del archivo después de normalizarlos. Los errores incluyen código y localización cuando existe; se acotan a 100 con indicador de truncamiento, sin copiar datos personales.
+
+Validación focalizada aportada por el mantenedor: 56 pruebas del CSV y 46 del alta manual, **102 aprobadas**, tipos y lint API aprobados. Validación global posterior confirmada por la salida del mantenedor: **1.404 pruebas aprobadas** (558 API, 635 web y 211 de integración PostgreSQL), typecheck, lint y build. Las 102 focalizadas se solapan con la suite y no se suman. La práctica local confirmó dos registros normalizados para el archivo válido y tres errores esperados para el inválido, sin escrituras. git diff --check sin errores. Esto no acredita una importación persistida.
+
+Consulta el [contrato CSV](docs/architecture/registration-csv.md), los [ejemplos de práctica](docs/examples/registration-csv/README.md) y los ADR [023](docs/adr/ADR-023-formato-y-limites-de-csv.md), [024](docs/adr/ADR-024-validacion-csv-sin-importacion-parcial.md) y [025](docs/adr/ADR-025-diagnosticos-acotados-de-csv.md). RF-ATT-002 sigue pendiente: faltan autorización, persistencia, conflictos concurrentes, idempotencia y recorrido web.
 
 ## Comandos
 
