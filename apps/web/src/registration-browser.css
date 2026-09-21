@@ -12,3 +12,7 @@
 .registration-browser dt { font-weight: 700; }
 .registration-browser dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 520px) { .registration-browser dl { grid-template-columns: 1fr; gap: 5px; } .registration-browser dd { margin-bottom: 12px; } }
+
+.registration-browser form { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-block: 1rem; }
+.registration-browser form input { min-width: 0; max-width: 100%; padding: .75rem; font: inherit; }
+.registration-browser form p { flex-basis: 100%; margin: 0; }

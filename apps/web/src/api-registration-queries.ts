@@ -8,7 +8,7 @@ export interface QueriedRegistration {
   attendee: { id: string; fullName: string; email: string };
 }
 export interface RegistrationPage { items: QueriedRegistration[]; nextCursor: string | null }
-export interface RegistrationQueryOptions extends EventQueryOptions { eventId: string }
+export interface RegistrationQueryOptions extends EventQueryOptions { eventId: string; isCurrent?: () => boolean }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // El cursor es opaco para la web; la API valida su contenido y vínculo al evento.
 const cursorPattern = /^[A-Za-z0-9_-]{1,150}$/;
@@ -49,7 +49,7 @@ function baseUrl(options: RegistrationQueryOptions): URL {
   }
 }
 async function read(url: URL, options: RegistrationQueryOptions): Promise<unknown> {
-  const checkCancelled = () => { if (options.signal?.aborted) throw new RegistrationQueryError("cancelled"); };
+  const checkCancelled = () => { if (options.signal?.aborted || options.isCurrent?.() === false) throw new RegistrationQueryError("cancelled"); };
   checkCancelled();
   let token: string;
   try {
@@ -88,15 +88,17 @@ async function read(url: URL, options: RegistrationQueryOptions): Promise<unknow
     clearTimeout(timer); options.signal?.removeEventListener("abort", cancel);
   }
 }
-export async function listApiRegistrations(options: RegistrationQueryOptions & { limit?: number; cursor?: string }): Promise<RegistrationPage> {
+async function readPage(options: RegistrationQueryOptions & { limit?: number; cursor?: string }, q?: string): Promise<RegistrationPage> {
+  const pageCursorPattern = q === undefined ? cursorPattern : /^[A-Za-z0-9_-]{1,240}$/;
   const url = baseUrl(options); const limit = options.limit ?? 20;
   if (!Number.isInteger(limit) || limit < 1 || limit > 100 ||
-      (options.cursor !== undefined && !cursorPattern.test(options.cursor))) throw new RegistrationQueryError("validation");
+      (options.cursor !== undefined && !pageCursorPattern.test(options.cursor))) throw new RegistrationQueryError("validation");
+  if (q !== undefined) { url.pathname += "/search"; url.searchParams.set("q", q); }
   url.searchParams.set("limit", String(limit));
   if (options.cursor !== undefined) url.searchParams.set("cursor", options.cursor);
   const data = await read(url, options);
   if (!record(data) || !Array.isArray(data.items) || data.items.length > limit ||
-      !(data.nextCursor === null || (typeof data.nextCursor === "string" && cursorPattern.test(data.nextCursor)))) {
+      !(data.nextCursor === null || (typeof data.nextCursor === "string" && pageCursorPattern.test(data.nextCursor)))) {
     throw new RegistrationQueryError("invalid_response");
   }
   const items = data.items.map(item => parseRegistration(item, options.eventId.toLowerCase()));
@@ -114,4 +116,16 @@ export async function getApiRegistration(options: RegistrationQueryOptions & { r
   const registration = parseRegistration(await read(url, options), options.eventId.toLowerCase());
   if (registration.id !== options.registrationId.toLowerCase()) throw new RegistrationQueryError("invalid_response");
   return registration;
+}
+
+export function normalizeRegistrationSearch(value: string): string {
+  if (typeof value !== "string" || value.length > 200 || ![...value].every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127) ||
+      value.trim().length < 1 || value.trim().length > 100) throw new RegistrationQueryError("validation");
+  return value.trim();
+}
+export function listApiRegistrations(options: RegistrationQueryOptions & { limit?: number; cursor?: string }): Promise<RegistrationPage> {
+  return readPage(options);
+}
+export async function searchApiRegistrations(options: RegistrationQueryOptions & { q: string; limit?: number; cursor?: string }): Promise<RegistrationPage> {
+  return readPage(options, normalizeRegistrationSearch(options.q));
 }

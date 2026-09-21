@@ -24,7 +24,7 @@ import {
   vi,
 } from "vitest";
 import { registerApiAttendee, type ApiRegistration } from "./api-registrations";
-import { listApiRegistrations, getApiRegistration, type RegistrationPage } from "./api-registration-queries";
+import { listApiRegistrations, getApiRegistration, searchApiRegistrations, type RegistrationPage } from "./api-registration-queries";
 import { RegistrationQueryError } from "./registration-query-error";
 import { RegistrationError } from "./registration-error";
 import { importApiRegistrationCsv, queryApiRegistrationCsv, type CsvLookup } from "./api-registration-csv";
@@ -74,7 +74,7 @@ vi.mock("./api-registrations", async (importOriginal) => {
 });
 vi.mock("./api-registration-queries", async (importOriginal) => {
   const original = await importOriginal<typeof import("./api-registration-queries")>();
-  return { ...original, listApiRegistrations: vi.fn(), getApiRegistration: vi.fn() };
+  return { ...original, listApiRegistrations: vi.fn(), getApiRegistration: vi.fn(), searchApiRegistrations: vi.fn() };
 });
 const account: AccountInfo = {
   homeAccountId: "test-home",
@@ -784,6 +784,32 @@ describe("SessionControls registration queries", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Ver inscripciones" }));
     fireEvent.click(await screen.findByRole("button", { name: "Cargar inscripciones" }));
   }
+  it("searches with the verified account, scope and selected event", async () => {
+    vi.mocked(searchApiRegistrations).mockResolvedValue({ items: [registration], nextCursor: null });
+    const view = setup(); await browse(); await screen.findByText("Persona consulta");
+    fireEvent.change(screen.getByLabelText("Nombre o correo"), { target: { value: " consulta " } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    await waitFor(() => expect(searchApiRegistrations).toHaveBeenCalledOnce());
+    expect(searchApiRegistrations).toHaveBeenCalledWith({ instance: view.instance, account,
+      apiScope: "api://44444444-4444-4444-8444-444444444444/access_as_user", apiUrl: "http://localhost:3001",
+      eventId: queriedEvent.id, q: "consulta", cursor: undefined, signal: expect.any(AbortSignal), isCurrent: expect.any(Function) });
+    await screen.findByText("Persona consulta");
+  });
+  it.each(["account", "logout", "interaction", "recheck"])("aborts pending search on %s", async change => {
+    const request = deferred<RegistrationPage>(); vi.mocked(searchApiRegistrations).mockReturnValue(request.promise);
+    const view = setup(); await browse(); await screen.findByText("Persona consulta");
+    fireEvent.change(screen.getByLabelText("Nombre o correo"), { target: { value: "consulta" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    await waitFor(() => expect(searchApiRegistrations).toHaveBeenCalledOnce());
+    const options = vi.mocked(searchApiRegistrations).mock.calls[0][0];
+    if (change === "account") view.switchAccount({ ...account, homeAccountId: "other" });
+    else if (change === "logout") fireEvent.click(screen.getByText("Cerrar sesión"));
+    else if (change === "interaction") view.setProgress(InteractionStatus.AcquireToken);
+    else checkAccess();
+    expect(options.signal?.aborted).toBe(true);
+    await act(async () => request.resolve({ items: [registration], nextCursor: null }));
+    expect(screen.queryByText("consulta@example.com")).toBeNull();
+  });
   it("uses the verified account and API scope for both registration reads", async () => {
     const view = setup(); await browse(); await screen.findByText("Persona consulta");
     const common = { instance: view.instance, account, apiScope: "api://44444444-4444-4444-8444-444444444444/access_as_user",
