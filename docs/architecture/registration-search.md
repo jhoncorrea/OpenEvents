@@ -33,6 +33,29 @@ No hay snapshot entre páginas. Inserciones, eliminaciones o cambios de nombre p
 
 ## Validación y límites
 
-27 pruebas nuevas de entrada/cursor y 32 PostgreSQL. Las 77 regresiones existentes verifican que no se amplía el acceso de organizadores. Total focalizado: 136. Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.654 pruebas aprobadas (629 API, 698 web y 327 de integración PostgreSQL), typecheck, lint y build correctos. Las 136 focalizadas están incluidas en el total y no se suman nuevamente. git diff --check sin errores de espacios; solo avisos CRLF a LF. Pendientes commit, PR, CI y merge. Datos de prueba transaccionales con rollback. Typecheck, lint y build aprobados en copia aislada.
+27 pruebas nuevas de entrada/cursor y 32 PostgreSQL. Las 77 regresiones existentes verifican que no se amplía el acceso de organizadores. Total focalizado: 136. Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.654 pruebas aprobadas (629 API, 698 web y 327 de integración PostgreSQL), typecheck, lint y build correctos. Las 136 focalizadas están incluidas en el total y no se suman nuevamente. git diff --check sin errores de espacios; solo avisos CRLF a LF. Integrado mediante PR #54: implementación 3d57461, merge 8e03111; CI 35628691770 completed / success verificado. Main local sincronizado y limpio, rama local y remota eliminada según el mantenedor. Datos de prueba transaccionales con rollback. Typecheck, lint y build aprobados en copia aislada.
 
 Incluye coincidencias, literales especiales, entradas inválidas, aislamiento de eventos/tenant, matriz de roles, revocación entre páginas, canceladas y ausencia de escrituras. No añade pruebas de rendimiento ni garantiza latencia a escala del piloto. ILIKE con comodín inicial puede escanear filas: medir con carga representativa antes de añadir índices o extensiones. No hay conteo total ni búsqueda por código.
+
+
+### Búsqueda HTTP - OE-03-003B (Issue #55)
+
+`GET /api/v1/events/:eventId/registrations/search` expone la operación interna con Bearer, rol global organizer o checkin_operator y autorización vigente por evento. Admite q, limit y cursor; devuelve items y nextCursor, fechas UTC y Cache-Control: no-store. Parámetros inválidos, repetidos o desconocidos se rechazan. No acepta cuerpo. No amplía listado/detalle existentes ni incorpora web, QR o check-in.
+
+Privacidad: se desactivan los logs automáticos de solicitudes de Fastify en buildApp mediante LogController. Se conservan logs explícitos con códigos fijos; el endpoint no registra consulta, cursor, token, resultados ni excepción original. Esto elimina los mensajes automáticos de entrada/finalización y sus tiempos para toda la aplicación. No elimina URL del historial del cliente ni de proxies externos: evitar registrar query strings allí antes de desplegar. La respuesta usa no-store, pero ese encabezado no borra logs ni historial.
+
+Validación del agente en copia aislada: typecheck, lint y build correctos; 164 pruebas focalizadas (27 HTTP nuevas, 11 PostgreSQL nuevas y 126 regresiones). Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.692 pruebas aprobadas (656 API, 698 web y 338 de integración PostgreSQL), typecheck, lint y build correctos. Las 164 focalizadas están incluidas en el total y no se suman nuevamente. git diff --check sin errores de espacios; solo avisos CRLF a LF. Pendientes commit, PR, CI y merge. Sin migraciones ni dependencias nuevas. Decisiones ADR-041 a ADR-043. RF-ATT-003 sigue parcial.
+
+
+#### Contrato de transporte de búsqueda
+
+- Método GET; ruta estática /api/v1/events/:eventId/registrations/search. El segmento search no se interpreta como registrationId. Sin alias HEAD de esta ruta.
+- Authorization: Bearer con token verificado; el guard corre en onRequest antes de validar entrada. No se acepta identidad aportada en query. El servicio revalida usuario activo y pareja de rol/asignación en cada página.
+- q obligatorio; limit y cursor opcionales. Se conserva exactamente el contrato de entrada interno: q recortado de 1 a 100 unidades UTF-16, controles ASCII rechazados; limit decimal canónico 1..100, por defecto 20; cursor vinculado a evento y término. Los parámetros repetidos producen arrays y se rechazan por el esquema estricto. Campos desconocidos se rechazan.
+- Sin cuerpo: Content-Length no cero o Transfer-Encoding se rechazan con 400. No se redefine el parser de otras rutas.
+- 200: { items, nextCursor }; cada item contiene id, eventId, status, source, createdAt ISO UTC y attendee con id, fullName, email. Sin coincidencias: items vacío y nextCursor null. Incluye canceladas con su estado.
+- 400 INVALID_REGISTRATION_SEARCH: UUID, query, cursor o cuerpo inválidos. 401 UNAUTHORIZED con WWW-Authenticate: Bearer. 403 FORBIDDEN: rol no permitido o usuario inactivo. 404 EVENT_NOT_FOUND: usuario local desconocido, evento no encontrado o asignación incompatible/ausente. 500 INTERNAL_SERVER_ERROR: fallo inesperado genérico. No se serializan detalles de Zod, SQL ni excepciones.
+- Cache-Control: no-store en éxitos y errores del recorrido protegido. CORS conserva el origen local existente y permite preflight para GET con Authorization.
+- No hay cambios en los permisos de las rutas previas. La búsqueda no otorga permisos para detalle, alta, importación o check-in.
+
+Se elige GET para una consulta sin efectos de escritura, reutilizando el contrato existente q/limit/cursor y su validación de parámetros repetidos. No usar URL de búsqueda como enlace compartido ni registrar la query en infraestructura. El control de logs aquí cubre la aplicación; el despliegue debe configurar su propio acceso/proxy. El control de logs usa la API LogController disponible en Fastify 5.12.4 del lockfile actual; no se modifica package.json ni el lockfile.
