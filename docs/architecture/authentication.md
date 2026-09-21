@@ -352,3 +352,12 @@ La comprobación se repite tanto en la consulta como en el reenvío. El bloqueo 
 No se requiere estado draft/active para recuperar una operación confirmada; ese requisito permanece para crear una importación nueva. El snapshot devuelto es histórico y contiene nombres/correos. No se guarda CSV original, token ni logs de filas. Un snapshot inválido produce un error genérico sin revelar contenido. La función recibe un actor confiable y no verifica JWT por sí misma; no hay nuevos secretos ni cambios de Entra.
 
 Archivos de más de 1 MiB se rechazan antes del hash y la consulta. Para archivos acotados se comprueban permisos y una clave existente antes de exponer conflicto de contenido; diagnósticos del CSV propio no conceden información sobre inscripciones persistidas. La prueba focalizada incluye esperas reales ante usuario deshabilitado y asignación retirada.
+
+
+### CSV mediante HTTP - OE-03-002D (Issue #49)
+
+POST y GET `/api/v1/events/{eventId}/registrations/imports` requieren Bearer e Idempotency-Key UUID. POST recibe text/csv hasta 1 MiB como bytes originales y llama a la operación idempotente. GET consulta el comprobante con permisos actuales. Ambos expresan resultado confirmado con 200; GET también admite not_observed, que no significa fallo.
+
+Rama feat/49-registration-csv-http. Verificación del agente en copia aislada: typecheck y lint aprobados; 44 pruebas HTTP nuevas y 12 nuevas de integración PostgreSQL aprobadas. Regresión: 80 pruebas de rutas existentes y 35 de idempotencia aprobadas (171 casos distintos en total). Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: **1.532 pruebas aprobadas** (602 API, 635 web y 295 de integración PostgreSQL), typecheck, lint y build correctos. Las 171 focalizadas están incluidas y no se suman de nuevo. git diff --check sin errores de espacios, con avisos de normalización CRLF a LF. Pendientes commit, PR, CI y merge. Las pruebas HTTP sustituyen el verificador JWT; no equivalen a una prueba manual con Entra real.
+
+Sin pantalla CSV ni cambios de esquema. RF-ATT-002 continúa pendiente del recorrido web. Contrato completo en docs/architecture/api-contract.md; decisiones ADR-032, ADR-033 y ADR-034.
