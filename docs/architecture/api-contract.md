@@ -349,7 +349,7 @@ Devuelve los ingresos recientes con paginación por cursor.
 ## 8. Pendiente antes de implementación
 
 - generar OpenAPI desde esquemas compartidos;
-- definir límites y formato exacto del CSV;
+- formato y límites del validador CSV definidos en [registration-csv.md](registration-csv.md); quedan pendientes transporte HTTP y límites de la futura importación;
 - definir paginación;
 - definir rate limiting;
 - definir estrategia de idempotencia para importaciones;
@@ -499,3 +499,8 @@ Issue #41 reutiliza los GET de OE-03-001C sin modificar rutas, permisos, código
 El cliente diferencia el contrato de lectura (confirmed/cancelled y origen persistido) del contrato de alta (confirmed/manual). Valida el evento de todas las filas y el identificador del detalle solicitado, estructura y campos antes de mostrarlos. Rechaza páginas duplicadas/desordenadas, exceso de filas, cursores malformados o repetidos y continuación de una página incompleta. La pantalla detecta además ciclos entre páginas, conserva las filas anteriores ante fallos de red y exige reiniciar ante validación o respuesta inválida. No se decodifica el cursor en la web.
 
 Un 404 del detalle puede corresponder a inscripción ausente o evento inaccesible; la interfaz limpia el listado de ese evento de forma conservadora y permite volver a consultar los eventos. No se añade reconciliación de resultados inciertos ni se considera que leer una inscripción pruebe cuál solicitud de alta la creó.
+
+
+### Validador interno de CSV — OE-03-002A
+
+Issue #43 implementa `validateRegistrationCsv(Uint8Array)` sin ruta HTTP. La ruta de importación planificada no se considera implementada. El [contrato interno](registration-csv.md) devuelve un resultado válido con filas normalizadas, o inválido con errores acotados y sin lote importable. No valida permisos ni consulta duplicados persistidos. El futuro servicio deberá autorizar por evento y garantizar la política transaccional bajo concurrencia; esta validación previa no sustituye esas garantías.

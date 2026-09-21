@@ -467,3 +467,24 @@ El mantenedor confirmó PR #40 integrado, CI verde, main sincronizado en 72a91f4
 ADR-020: aislamiento por cuenta/evento y retiro conservador en 404. ADR-021: navegación con cursor opaco y recuperación explícita. ADR-022: contrato de lectura validado, separado del alta. No se modifican API, migraciones ni infraestructura. La historia principal no se cierra automáticamente por esta implementación; contrastar sus criterios después del merge.
 
 Siguiente: copiar la evidencia final, revisar el diff preparado y crear commit/PR. No repetir la suite global por este ajuste documental. Después de CI y merge, documentar el cierre con PDF y resumen visual siguiendo OpenEvents_OE-03-001D_Consulta_inscripciones_web_PR<número>.
+
+
+## 2026-09-20 — Cierre de OE-03-001D e inicio de OE-03-002A (Issue #43)
+
+PR #42 integrado en 2d40ac2, implementación c2bd2fb. El mantenedor aportó CI de main con estado Success, ejecución #43, duración 1 min 22 s, y confirmó main limpio/sincronizado y rama eliminada. El número 43 de ese workflow no era el número del PR. El nuevo Issue #43 corresponde a la validación CSV. Se creó feat/43-registration-csv-validation desde main actualizado.
+
+- Validador puro de Uint8Array: UTF-8 estricto, BOM opcional, coma, comillas, LF/CRLF y localización de registros lógicos frente a líneas físicas.
+- Límites de 1 MiB, 500 registros de datos y 100 errores. Reporte truncado solo cuando se omite algún error; un fallo estructural puede detener el análisis antes del final.
+- Reutiliza reglas de alta manual; detecta duplicados internos del correo normalizado incluso si el primer registro tiene nombre inválido. No consulta PostgreSQL, permisos ni correos persistidos.
+- 56 pruebas del validador y 46 de alta manual aprobadas por el mantenedor: 102 en total. Tipos y lint API aprobados. Validación global posterior confirmada mediante salida del mantenedor: 558 pruebas API, 635 web y 211 de integración PostgreSQL, **1.404 aprobadas**. Typecheck, lint y build globales aprobados; git diff --check sin errores. Las 102 focalizadas no se suman nuevamente. Pendientes commit, PR, CI y merge.
+- Ejemplos sintéticos válido/inválido ejecutados por el mantenedor tras compilar la API: dos registros normalizados en el válido; DUPLICATE_EMAIL, INVALID_NAME e INVALID_EMAIL en el inválido, sin lote importable ni escrituras. El comprobador no inicia el servidor ni accede a la base de datos.
+
+### Riesgos y límites
+
+Seguridad: contenido mal formado y errores con datos personales. Se limita el archivo antes de decodificar, UTF-8 fatal y mensajes propios sin valores ni logs. Falta el control HTTP, autorización y observabilidad de la futura importación. Las filas válidas pueden contener texto que una futura exportación a hoja de cálculo deba tratar; esto no es una exportación segura de fórmulas.
+
+Concurrencia/carga: se acotan bytes, registros y errores, pero no se promete capacidad de producción. El validador no detecta conflictos con PostgreSQL ni carreras entre importaciones; faltan transacción, restricciones, idempotencia y pruebas de carga del servicio futuro.
+
+Experiencia: confundir registros con líneas o tomar filas parcialmente válidas como importables. El resultado inválido no contiene rows/count; la localización usa registro de datos desde 1 y línea inicial desde 1 incluyendo encabezado. El reporte no promete todos los errores tras un fallo estructural.
+
+ADR-023: formato y límites explícitos. ADR-024: validación completa sin lote parcial. ADR-025: diagnósticos acotados sin valores personales. Próximo paso: copiar esta evidencia documental, revisar el diff preparado y crear commit/PR. No es necesario repetir las pruebas por este ajuste exclusivamente documental. Registrar el número real del PR y el resultado del CI antes del cierre.
