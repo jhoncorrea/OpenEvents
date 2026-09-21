@@ -7,6 +7,7 @@ import MyEvents from "./MyEvents";
 import { EventQueryError, type ApiEvent, type ApiEventPage } from "./api-event-queries";
 import { RegistrationQueryError, type QueriedRegistration } from "./api-registration-queries";
 import type { RegistrationBrowserProps } from "./RegistrationBrowser";
+import { writeCsvRecovery } from "./csv-import-recovery";
 
 const event: ApiEvent = { id: "a4444444-4444-4444-8444-444444444444", name: "Evento Lima", slug: "evento-lima",
   startsAt: "2027-08-27T14:00:00Z", endsAt: "2027-08-27T22:00:00Z", createdAt: "2026-09-19T12:00:00Z",
@@ -23,6 +24,24 @@ function setup() {
 function pending<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 async function load() { fireEvent.click(screen.getByRole("button", { name: "Cargar eventos" })); await screen.findByRole("button", { name: "Ver detalle de Evento Lima" }); }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+describe("MyEvents CSV navigation", () => {
+  it("refreshes event on opening CSV and returning; hides competing actions", async () => {
+    const props = { ...setup(), sendCsv: vi.fn(), lookupCsv: vi.fn() };
+    render(<MyEvents {...props} />); await load(); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Evento Lima" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Importar CSV" })); await screen.findByRole("region", { name: "Importación CSV" });
+    expect(props.loadDetail).toHaveBeenCalledTimes(2); expect(screen.queryByText("Editar evento")).toBeNull(); expect(props.onEditingChange).toHaveBeenCalledWith(true);
+    fireEvent.click(screen.getByText("Volver al evento")); await screen.findByRole("button", { name: "Importar CSV" }); expect(props.loadDetail).toHaveBeenCalledTimes(3);
+  });
+  it("offers recovery for a closed event with a saved key", async () => {
+    sessionStorage.clear(); writeCsvRecovery("account-a", event.id, { key: event.id, hash: "a".repeat(64) });
+    const props = { ...setup(), sendCsv: vi.fn(), lookupCsv: vi.fn().mockResolvedValue({ status: "not_observed" }) };
+    props.loadDetail.mockResolvedValue({ ...event, status: "closed" }); render(<MyEvents {...props} />); await load();
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Evento Lima" })); fireEvent.click(await screen.findByText("Recuperar importación CSV"));
+    fireEvent.click(await screen.findByText("Consultar comprobante")); await screen.findByText(/Todavía no se observa/);
+    expect(props.lookupCsv).toHaveBeenCalledWith(event.id, event.id, expect.any(AbortSignal)); sessionStorage.clear();
+  });
+});
 
 describe("MyEvents", () => {
   it("does not expose or query events while disabled", () => {

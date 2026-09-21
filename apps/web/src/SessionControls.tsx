@@ -1,3 +1,4 @@
+import { CsvImportError } from "./csv-import-error";
 import { lazy, Suspense, useRef, useState } from "react";
 import {
   InteractionStatus,
@@ -300,6 +301,20 @@ function AccountControls({
       throw error;
     }
   }
+  async function csvOperation(eventId: string, key: string, signal: AbortSignal, bytes?: Uint8Array) {
+    const current = () => !signal.aborted && isCurrentAccount();
+    if (!current()) throw new CsvImportError("cancelled");
+    if (!account || !canCreate || busy || operationLock.current) throw new CsvImportError("unauthorized");
+    let config;
+    try { config = parseAuthConfig(import.meta.env); } catch { throw new CsvImportError("configuration"); }
+    const { importApiRegistrationCsv, queryApiRegistrationCsv } = await import("./api-registration-csv");
+    if (!current()) throw new CsvImportError("cancelled");
+    const options = { instance, account, apiScope: config.apiScope, apiUrl: import.meta.env.VITE_API_URL ?? "",
+      eventId, key, signal, isCurrent: current };
+    const result = bytes === undefined ? await queryApiRegistrationCsv(options) : await importApiRegistrationCsv({ ...options, bytes });
+    if (!current()) throw new CsvImportError("cancelled");
+    return result;
+  }
   async function handleEdit(eventId: string, input: EditEventPayload, signal: AbortSignal) {
     if (signal.aborted) throw new EventEditError("cancelled");
     if (!account || !isCurrentAccount() || !canCreate || busy || operationLock.current) {
@@ -463,6 +478,8 @@ function AccountControls({
             loadPage={queryEvents}
             loadDetail={queryDetail}
             saveEvent={handleEdit}
+            sendCsv={(id, key, bytes, signal) => csvOperation(id, key, signal, bytes)}
+            lookupCsv={(id, key, signal) => csvOperation(id, key, signal)}
             registerAttendee={handleRegistration}
             loadRegistrations={queryRegistrations}
             loadRegistrationDetail={queryRegistrationDetail}

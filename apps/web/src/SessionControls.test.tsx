@@ -27,6 +27,9 @@ import { registerApiAttendee, type ApiRegistration } from "./api-registrations";
 import { listApiRegistrations, getApiRegistration, type RegistrationPage } from "./api-registration-queries";
 import { RegistrationQueryError } from "./registration-query-error";
 import { RegistrationError } from "./registration-error";
+import { importApiRegistrationCsv, queryApiRegistrationCsv, type CsvLookup } from "./api-registration-csv";
+import * as csvRecovery from "./csv-import-recovery";
+import { CsvImportError } from "./csv-import-error";
 import SessionControls from "./SessionControls";
 import { fetchApiIdentity } from "./api-auth";
 import { listApiEvents, getApiEvent, EventQueryError, type ApiEventPage } from "./api-event-queries";
@@ -42,6 +45,7 @@ import {
 vi.mock("@azure/msal-react", () => ({
   useMsal: vi.fn(),
 }));
+vi.mock("./api-registration-csv", async (original) => ({ ...await original<typeof import("./api-registration-csv")>(), importApiRegistrationCsv: vi.fn(), queryApiRegistrationCsv: vi.fn() }));
 
 vi.mock("./api-auth", () => ({
   fetchApiIdentity: vi.fn(),
@@ -212,6 +216,48 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   window.sessionStorage.clear();
+});
+
+describe("SessionControls CSV integration", () => {
+  function result(): CsvLookup { return { status: "completed", receipt: { importId: queriedEvent.id, completedAt: "2026-09-21T12:00:00.000Z", result: { eventId: queriedEvent.id, count: 2, items: [] } } }; }
+  beforeEach(() => {
+    vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null }); vi.mocked(getApiEvent).mockResolvedValue(queriedEvent);
+    vi.mocked(importApiRegistrationCsv).mockResolvedValue(result()); vi.mocked(queryApiRegistrationCsv).mockResolvedValue(result());
+    vi.spyOn(csvRecovery, "csvHash").mockResolvedValue("a".repeat(64));
+  });
+  async function openCsv() {
+    checkAccess(); fireEvent.click(await screen.findByRole("button", { name: "Cargar eventos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver detalle de Evento consultado" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Importar CSV" })); await screen.findByRole("region", { name: "Importación CSV" });
+  }
+  async function chooseCsv() {
+    const f = new File(["abc"], "test.csv"); Object.defineProperty(f, "arrayBuffer", { value: async () => new Uint8Array([65]).buffer });
+    fireEvent.change(screen.getByLabelText("Archivo CSV"), { target: { files: [f] } }); await screen.findByText("Archivo preparado: test.csv");
+    fireEvent.click(screen.getByText("Importar archivo"));
+  }
+  it("passes verified account, scope, key and bytes to POST and GET", async () => {
+    vi.mocked(importApiRegistrationCsv).mockRejectedValue(new CsvImportError("uncertain")); const view = setup(); await openCsv(); await chooseCsv();
+    await screen.findByText(/No pudimos confirmar el resultado/); const sent = vi.mocked(importApiRegistrationCsv).mock.calls[0][0];
+    expect(sent).toMatchObject({ instance: view.instance, account, apiScope: "api://44444444-4444-4444-8444-444444444444/access_as_user", apiUrl: "http://localhost:3001", eventId: queriedEvent.id, bytes: new Uint8Array([65]) });
+    expect(sent.isCurrent?.()).toBe(true); fireEvent.click(screen.getByText("Consultar comprobante")); await screen.findByText("Importación confirmada");
+    expect(queryApiRegistrationCsv).toHaveBeenCalledWith(expect.objectContaining({ key: sent.key, account, eventId: queriedEvent.id }));
+  });
+  it.each(["account", "logout", "interaction"])("aborts CSV on %s and hides late receipt", async change => {
+    const pending = deferred<CsvLookup>(); vi.mocked(importApiRegistrationCsv).mockReturnValue(pending.promise);
+    const view = setup(); await openCsv(); await chooseCsv(); await waitFor(() => expect(importApiRegistrationCsv).toHaveBeenCalledTimes(1));
+    const sent = vi.mocked(importApiRegistrationCsv).mock.calls[0][0];
+    if (change === "account") view.switchAccount({ ...account, homeAccountId: "other" });
+    else if (change === "logout") fireEvent.click(screen.getByText("Cerrar sesión"));
+    else view.setProgress(InteractionStatus.AcquireToken);
+    expect(sent.signal?.aborted).toBe(true); expect(sent.isCurrent?.()).toBe(false);
+    await act(async () => pending.resolve(result())); expect(screen.queryByText("Importación confirmada")).toBeNull();
+    expect(Object.keys(sessionStorage).some(k => k.startsWith("openevents:csv:"))).toBe(true);
+  });
+  it("retains recovery across access invalidation and a new check", async () => {
+    vi.mocked(importApiRegistrationCsv).mockRejectedValue(new CsvImportError("unauthorized")); setup(); await openCsv(); await chooseCsv();
+    await screen.findByText(/Vuelve a comprobar el acceso antes de continuar/); await openCsv();
+    expect(screen.getByText("Consultar comprobante")).toBeTruthy(); expect(screen.queryByText("Archivo preparado: test.csv")).toBeNull();
+  });
 });
 
 describe("SessionControls", () => {
