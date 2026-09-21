@@ -505,3 +505,18 @@ Concurrencia: restricción única, transacción y orden de claves. Pruebas con c
 Experiencia: todo el lote o nada ante fallos transaccionales conocidos. Una desconexión durante commit puede dejar resultado incierto; hace falta reconciliación antes de exponer HTTP. Repetir y recibir conflicto no equivale a idempotencia.
 
 Decisiones: ADR-026 atomicidad/autorización, ADR-027 conflictos/orden, ADR-028 resultado interno/reintentos. Siguiente: copiar la evidencia documental actualizada, revisar el diff preparado y crear el commit. No es necesario repetir las pruebas por este ajuste exclusivamente documental. El PDF y la imagen de cierre se generarán con el número real del PR y la evidencia del merge.
+
+
+## 2026-09-20 — Cierre de OE-03-002B y recuperación interna OE-03-002C
+
+Issue #45 integrado mediante PR #46, implementación 0436906 y merge 3c716ea. CI 35557710086 confirmado completed/success para ese merge. El mantenedor confirmó main/origin/main limpios en 3c716ea y eliminación de la rama local/remota. PDF e imagen de cierre entregados. Quedan resueltos los pendientes de merge del registro anterior.
+
+Issue #47 creado con el formulario «Solicitar una funcionalidad», siguiendo problema, solución, beneficiario Organizador, área API, criterios, alternativas y contexto. Rama feat/47-registration-csv-idempotency creada desde main limpio.
+
+Se añadió registration_csv_import y la migración 0004 con snapshot y journal. Nueva operación idempotente y consulta interna, sin cambiar la primitiva anterior. Clave UUID por evento/organizador, SHA-256 de bytes exactos, snapshot versionado e histórico. Comprobante y lote confirman juntos. READ COMMITTED más bloqueo asesor transaccional serializan la clave; permisos actuales preceden lectura/replay. Recuperar un evento cerrado no inicia nuevas inscripciones.
+
+El mantenedor aplicó db:migrate y lo repitió correctamente; tipos/lint API aprobados y 72 pruebas focalizadas (35 nuevas, 27 y 10 existentes). git diff --check sin errores de espacios; aviso CRLF a LF en schema.ts. La copia de verificación comprobó los mismos 72 casos y correspondencia de esquema/snapshot sin cambios adicionales. No sumar ambos resultados. Validación global confirmada por la salida del mantenedor: **1.476 pruebas aprobadas** (558 API, 635 web y 283 de integración PostgreSQL), typecheck, lint y build globales correctos. git diff --check sin errores de espacios, con aviso de normalización CRLF a LF en schema.ts. Las 72 pruebas focalizadas se solapan con la suite global y no se suman nuevamente. Pendientes commit, PR, CI y merge de #47.
+
+Seguridad: clave no concede permisos; snapshot personal requiere autorización y conservación responsable. Concurrencia: espera real observada en PostgreSQL, commit/rollback del ganador y restricción única; no hay promesa de ausencia universal de deadlocks ni prueba de carga. Experiencia: not_observed no significa fracaso, y el comprobante refleja el resultado histórico, no el estado actual. Se simuló respuesta descartada tras confirmar, no una caída física durante COMMIT.
+
+ADR-029: ámbito de clave y huella de bytes. ADR-030: transacción y coordinación de reintentos. ADR-031: recuperación histórica, autorización y conservación sin purga automática. Siguiente: copiar la evidencia documental actualizada, revisar el diff preparado y crear el commit. No repetir la suite por este ajuste exclusivamente documental. Endpoint/web quedan para próximas entregas; no hay issue siguiente confirmado.

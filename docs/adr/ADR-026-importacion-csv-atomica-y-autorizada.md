@@ -1,6 +1,6 @@
 # ADR-026: Importación CSV atómica y autorizada
 
-- Estado: Aceptado para Issue #45; pendiente de merge.
+- Estado: Aceptado e integrado mediante PR #46, merge 3c716ea (Issue #45).
 - Fecha: 2026-09-20
 
 ## Contexto

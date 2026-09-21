@@ -341,3 +341,14 @@ Tras validar el CSV sin I/O, abre una transacción y adquiere bloqueos SHARE en 
 La respuesta de éxito contiene datos personales y es de uso interno. El conflicto conocido se traduce después del rollback a RegistrationEmailConflictError sin valores SQL. Otros fallos se propagan internamente, por lo que el futuro adaptador debe impedir su exposición o registro indiscriminado. No se añaden logs, secretos, configuración de Entra ni auditoría operativa.
 
 Pruebas focalizadas de importación y regresión del alta manual: 64 aprobadas. Incluyen cambios de estado/usuario/asignación iniciados antes de la importación y comprobación de esperas reales mediante pg_blocking_pids; no constituyen pruebas de carga ni autenticación manual con otra cuenta real.
+
+
+## Recuperación idempotente de CSV — OE-03-002C (Issue #47)
+
+La clave UUID no es una credencial. Su ámbito es evento + usuario local vinculado a tenantId/objectId, no sub ni correo. Antes de leer un comprobante se exige organizer, usuario activo y asignación organizer actual; se bloquean usuario, asignación y evento con SHARE, en ese orden. Otro organizador asignado tiene un ámbito independiente; no puede recuperar el comprobante del primero conociendo la clave.
+
+La comprobación se repite tanto en la consulta como en el reenvío. El bloqueo dura hasta finalizar la transacción: una revocación previa que mantiene el lock hace esperar a la operación, que después verifica el estado confirmado. Si la operación obtuvo primero los bloqueos, la revocación espera; no se promete revocación retroactiva.
+
+No se requiere estado draft/active para recuperar una operación confirmada; ese requisito permanece para crear una importación nueva. El snapshot devuelto es histórico y contiene nombres/correos. No se guarda CSV original, token ni logs de filas. Un snapshot inválido produce un error genérico sin revelar contenido. La función recibe un actor confiable y no verifica JWT por sí misma; no hay nuevos secretos ni cambios de Entra.
+
+Archivos de más de 1 MiB se rechazan antes del hash y la consulta. Para archivos acotados se comprueban permisos y una clave existente antes de exponer conflicto de contenido; diagnósticos del CSV propio no conceden información sobre inscripciones persistidas. La prueba focalizada incluye esperas reales ante usuario deshabilitado y asignación retirada.

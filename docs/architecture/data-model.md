@@ -203,3 +203,26 @@ El campo es una clave de deduplicación de inscripción, no una identidad global
 La migración 0003 añade el campo nullable, completa desde attendee con recorte de espacios ASCII y minúsculas, valida datos históricos y después agrega NOT NULL, UNIQUE y CHECK. Si encuentra valores incompatibles o duplicados por evento, falla dentro de la transacción de migración; no fusiona ni elimina datos. Revisar los registros afectados antes de repetir. El backfill no cambia attendee.email ni full_name y no aplica todas las reglas sintácticas de la API a los correos históricos.
 
 La inserción de attendee y registration es atómica. Los bloqueos compartidos de autorización y estado no serializan entre sí todas las inscripciones; la restricción única decide los conflictos por correo. Los errores se propagan tras revertir y solo la restricción de correo se traduce al conflicto específico. No se incrementa event.version.
+
+
+## Registro de importaciones CSV — OE-03-002C
+
+La migración `0004_registration_csv_imports.sql`, snapshot 0004 y journal se versionan juntos. Añade registration_csv_import; no modifica las inscripciones existentes ni inventa comprobantes de importaciones anteriores.
+
+| Columna | Contrato |
+|---|---|
+| id | UUID propio de importación, PK. |
+| event_id | FK restrict a event. |
+| requested_by | FK restrict al usuario local solicitante. |
+| idempotency_key | UUID del llamador, normalizado por la aplicación. |
+| content_hash | SHA-256 hexadecimal minúsculo de bytes exactos; CHECK de 64 caracteres. |
+| result | JSONB objeto, snapshot versionado del resultado. |
+| completed_at | Timestamp con zona y default now(); fecha del registro confirmado, no medición del instante exacto del COMMIT. |
+
+UNIQUE(event_id, requested_by, idempotency_key) impide comprobantes repetidos en un mismo ámbito. CHECK solo asegura que result sea objeto: la aplicación valida versión, estructura, cantidad, pertenencia al evento e identificadores no repetidos al recuperarlo. Los identificadores dentro del JSON no son claves foráneas: el snapshot describe el resultado histórico, no el estado mutable actual.
+
+El registro se inserta en la misma transacción que perfiles e inscripciones. No hay estados persistidos running/failed ni comprobantes de un intento revertido. El bloqueo asesor no es una fila persistida; se libera al terminar la transacción.
+
+No hay TTL, caducidad ni purga automática. Se conserva el comprobante con el historial y no se reciclan claves. Una futura política de borrado deberá considerar datos personales duplicados en el snapshot y las FK restrict; eliminar solo el comprobante altera la garantía de replay. El hash no convierte el snapshot en anónimo ni reemplaza los permisos. No se almacena el CSV original.
+
+El mantenedor aplicó la migración y repitió db:migrate sin errores. Las nuevas pruebas aplican la cadena real de migraciones en un esquema temporal aislado y lo eliminan al terminar. La prueba de concurrencia y los límites de recuperación se detallan en el contrato CSV.
