@@ -224,3 +224,18 @@ export const auditLogs = pgTable("audit_log", {
     .notNull()
     .defaultNow(),
 });
+
+// Resultado histórico: se conserva con la operación; no guarda el CSV original.
+export const registrationCsvImports = pgTable("registration_csv_import", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "restrict" }),
+  requestedBy: uuid("requested_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  idempotencyKey: uuid("idempotency_key").notNull(),
+  contentHash: text("content_hash").notNull(),
+  result: jsonb("result").$type<unknown>().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  unique("registration_csv_import_scope_key_unique").on(table.eventId, table.requestedBy, table.idempotencyKey),
+  check("registration_csv_import_hash_check", sql`${table.contentHash} ~ '^[0-9a-f]{64}$'`),
+  check("registration_csv_import_result_check", sql`jsonb_typeof(${table.result}) = 'object'`),
+]);

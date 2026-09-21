@@ -29,6 +29,13 @@
       "when": 1789875082274,
       "tag": "0003_registration_event_email",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789962121052,
+      "tag": "0004_registration_csv_imports",
+      "breakpoints": true
     }
   ]
 }

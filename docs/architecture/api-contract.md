@@ -510,4 +510,13 @@ Issue #43 implementa `validateRegistrationCsv(Uint8Array)` sin ruta HTTP. La rut
 
 Issue #45 añade `importRegistrationCsvForOrganizer(db, eventId, bytes, actor)` sin endpoint HTTP. Recibe un actor ya autenticado por un adaptador confiable; no verifica un JWT por sí misma. Reutiliza permisos por evento y estados draft/active del alta manual, crea confirmed/csv y devuelve `{ eventId, count, items }` en orden de entrada. El [contrato interno](registration-csv.md) detalla transacción, errores y límites.
 
-No se asignan códigos HTTP ni se considera disponible una carga CSV desde Postman o la web. La futura ruta debe verificar token/cliente/scope, limitar el cuerpo y controlar la exposición de errores internos. La recuperación de resultados inciertos y la idempotencia deben definirse antes de exponerla. La consulta existente puede recuperar las inscripciones persistidas; no acredita qué petición las creó.
+No se asignan códigos HTTP ni se considera disponible una carga CSV desde Postman o la web. La futura ruta debe verificar token/cliente/scope, limitar el cuerpo y controlar la exposición de errores internos. OE-03-002C incorpora recuperación e idempotencia internas; la futura ruta debe conservar la clave y utilizar ese contrato al exponerla. La consulta existente puede recuperar las inscripciones persistidas; no acredita qué petición las creó.
+
+
+### Idempotencia interna de importaciones CSV — OE-03-002C
+
+Issue #47 añade `importRegistrationCsvIdempotently(db, eventId, key, bytes, actor)` y `queryRegistrationCsvImport(db, eventId, key, actor)`. No añade rutas ni códigos HTTP. El futuro adaptador debe verificar token, cliente y scope, limitar el cuerpo y usar la operación idempotente en lugar de la primitiva sin clave de OE-03-002B.
+
+La importación devuelve `{ importId, completedAt, result }`; result conserva eventId, count e items del resultado original. La consulta devuelve `{ status: "completed", receipt }` o `{ status: "not_observed" }`. No se interpreta not_observed como operación fallida ni se genera otra clave automáticamente. El contrato completo, precedencia de errores y conservación se documentan en [registration-csv.md](registration-csv.md).
+
+Los errores propios REGISTRATION_CSV_KEY_CONFLICT e INVALID_STORED_REGISTRATION_CSV_RESULT son internos. El adaptador futuro deberá mapearlos y proteger errores SQL, sin publicar claves, huellas, snapshots o mensajes internos indiscriminadamente. La idempotencia no evita la necesidad de autorización ni garantiza disponibilidad inmediata de la base.

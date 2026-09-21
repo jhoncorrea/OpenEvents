@@ -48,7 +48,7 @@ Cada error tiene code y message propios, sin valores de celdas ni excepciones de
 
 ## Garantías pendientes
 
-Rechazar el lote de validación no equivale a garantizar atomicidad en PostgreSQL. OE-03-002B añade autorización, estado, conflictos persistidos y transacción según el contrato siguiente. La idempotencia y recuperación permanecen pendientes. No se puede declarar completa RF-ATT-002 con este validador.
+Rechazar el lote de validación no equivale a garantizar atomicidad en PostgreSQL. OE-03-002B añade autorización, estado, conflictos persistidos y transacción según el contrato siguiente. OE-03-002C incorpora idempotencia y recuperación internas según el contrato posterior. No se puede declarar completa RF-ATT-002 con este validador.
 
 
 ## Operación interna de importación — OE-03-002B (Issue #45)
@@ -82,8 +82,53 @@ No hay escrituras antes de autorizar. Ante un conflicto o fallo de base de datos
 
 Dos importaciones que comparten correos no pueden confirmar ambos lotes completos; la restricción única y el rollback impiden duplicados y asistentes huérfanos. El alta manual comparte la misma restricción. Eventos distintos permiten el mismo correo con perfiles independientes. No se cambia versión ni asignaciones del evento.
 
-No hay reintentos automáticos ni idempotencia. Reenviar un lote ya confirmado devuelve conflicto y no demuestra si una solicitud anterior fue la que lo creó. Una pérdida de conexión durante el commit puede dejar al llamador sin conocer el resultado; no se promete que todo rechazo de la promesa equivalga a ausencia de escrituras. Antes del endpoint deben definirse clave/registro de importación y reconciliación o una política explícita equivalente.
+La primitiva de OE-03-002B no tiene reintentos automáticos ni idempotencia. Reenviar un lote ya confirmado mediante esa primitiva devuelve conflicto y no demuestra si una solicitud anterior fue la que lo creó. Una pérdida de conexión durante el commit puede dejar al llamador sin conocer el resultado; no se promete que todo rechazo de la promesa equivalga a ausencia de escrituras. OE-03-002C añade una operación con clave y comprobante; el endpoint futuro deberá usarla y conservar su semántica de recuperación.
 
 ### Evidencia del incremento
 
 37 pruebas nuevas con PostgreSQL: 27 de persistencia/autorización y 10 de concurrencia. El bloque del mantenedor incluye además 27 de alta manual, 64 aprobadas en total, con tipos y lint API correctos. Cubre límite de 500, orden devuelto, conflictos cancelled/confirmed, errores SQL reales, rollback, lotes superpuestos inversos y carrera con alta manual. Validación global posterior confirmada por el mantenedor: 1.441 pruebas aprobadas (558 API, 635 web y 248 de integración), typecheck, lint y build correctos, git diff --check limpio. Las 64 focalizadas no se suman al total global. Sin pruebas de carga, endpoint, pantalla ni simulación de caída durante commit.
+
+
+## Idempotencia y recuperación internas — OE-03-002C (Issue #47)
+
+### Interfaces y resultados
+
+`importRegistrationCsvIdempotently(db, eventId, key, bytes, actor)` devuelve `RegistrationCsvReceipt`: `{ importId, completedAt: Date, result: RegistrationCsvImportResult }`. La primitiva anterior sigue disponible para compatibilidad; no se convierte automáticamente en idempotente.
+
+`queryRegistrationCsvImport(db, eventId, key, actor)` devuelve `{ status: "completed", receipt }` o `{ status: "not_observed" }`. No espera el bloqueo asesor de una importación en curso, aunque puede esperar los bloqueos de autorización. not_observed significa únicamente que esa consulta no observó un comprobante confirmado. No acredita rollback ni autoriza cambiar de clave. Tras un fallo de comunicación se conserva la misma clave para consultar o reenviar cuando la base vuelva a responder; no hay reintentos automáticos.
+
+### Clave, contenido y precedencia
+
+- La clave debe ser UUID textual válido; se normaliza a minúsculas, sin aceptar cadenas arbitrarias. Ámbito: eventId + usuario local derivado de tenantId/objectId + clave. Dos eventos u organizadores tienen ámbitos independientes.
+- SHA-256 de los bytes exactos, no de filas normalizadas. Cambiar BOM, saltos, orden o mayúsculas cambia la huella aunque el contenido de negocio sea equivalente. La huella es identificación de contenido, no firma ni secreto.
+- Rol, identidad, eventId y clave se validan primero. El validador limita a 1 MiB antes de hash/copia; un exceso se rechaza sin consultar el registro. Se calcula huella y se copia el archivo antes del primer await, evitando cambios posteriores del llamador.
+- Dentro de la transacción se comprueban permisos y se coordina la clave. Si existe: misma huella recupera el snapshot; otra huella da REGISTRATION_CSV_KEY_CONFLICT, incluso si el nuevo contenido acotado es CSV inválido.
+- Sin comprobante, un CSV inválido produce RegistrationCsvValidationError con los diagnósticos originales y no reserva la clave. Un intento revertido puede usar esa clave de nuevo, incluso con contenido corregido; una clave confirmada no se reutiliza para otro contenido.
+
+### Transacción y concurrencia
+
+READ COMMITTED y bloqueos SHARE en orden usuario, asignación, evento. La importación idempotente rechaza una transacción externa con otro aislamiento. La consulta usa READ COMMITTED al abrir su propia transacción; si se anida, conserva la visibilidad del padre y not_observed sigue sin probar ausencia de trabajo.
+
+Un bloqueo asesor transaccional usa hashtextextended del prefijo versionado y del ámbito completo. Tras esperar, una sentencia nueva consulta el comprobante confirmado del ganador. Una colisión de hash solo serializa ámbitos adicionales: las consultas y la restricción única utilizan las columnas exactas, sin compartir resultados.
+
+Si no hay comprobante, se llama a la importación anterior dentro de un savepoint, se serializa el resultado y se inserta registration_csv_import en la transacción externa. Todo confirma junto; un fallo del comprobante revierte también perfiles e inscripciones. El resultado de una llamada anidada sigue sujeto al commit de su transacción padre.
+
+Dos solicitudes de igual clave/contenido recuperan un solo lote; si la primera revierte, la que esperaba puede importar. Igual clave y contenido distinto no confirma dos resultados incompatibles. Claves distintas siguen sujetas a la unicidad de correo por evento. No se prometen ausencia universal de deadlocks, espera ilimitada ni disponibilidad; un timeout o una desconexión dejan recuperación posterior con la misma clave.
+
+### Autorización, estados e historial
+
+Importar, consultar y repetir exigen permisos actuales. Usuario deshabilitado se rechaza; ausencia de usuario/asignación organizer/evento se trata como EventNotFoundError. No se recupera información ajena por conocer una clave.
+
+Un evento closed/cancelled admite recuperación de una operación ya confirmada si permanecen los permisos. Una clave nueva mantiene la regla draft/active de la importación anterior. Sin comprobante en un evento cerrado, la consulta devuelve not_observed, mientras que una nueva importación falla por estado.
+
+El JSON guarda versión 1, eventId, count e items con fechas ISO. Se recuperan Date, IDs, orden y datos del resultado original. Si una inscripción se cancela o un perfil cambia después, el comprobante no cambia: consultar el estado actual corresponde a los GET existentes. Un snapshot mal formado genera INVALID_STORED_REGISTRATION_CSV_RESULT sin exponer su contenido y sin insertar otro lote.
+
+### Conservación y seguridad
+
+No se guardan archivo original ni token. El snapshot sí contiene datos personales; no debe registrarse ni exponerse sin autorización. No hay TTL ni purga automática, y las claves confirmadas se conservan con el historial. La futura política de eliminación debe coordinar privacidad y garantías de replay: borrar solo la clave no es una limpieza inocua. Las FK a evento/usuario son restrictivas. Este incremento no implementa gestión de retención o borrado.
+
+### Evidencia y límites
+
+35 pruebas nuevas: persistencia de comprobante, recuperación entre conexiones, snapshot histórico, estados, aislamiento por evento/organizador, permisos actuales y revocación concurrente, contenido diferente, rollback, espera de commit/rollback, bytes mutables, límites y restricciones SQL. El bloque del mantenedor suma 72 con las 37 existentes de importación; se solapan y no deben sumarse a la futura suite global.
+
+Migración aplicada y segunda ejecución correcta; tipos y lint API aprobados. Validación global confirmada por la salida del mantenedor: **1.476 pruebas aprobadas** (558 API, 635 web y 283 de integración PostgreSQL), typecheck, lint y build globales correctos. git diff --check sin errores de espacios, con aviso de normalización CRLF a LF en schema.ts. Las 72 pruebas focalizadas se solapan con la suite global y no se suman nuevamente. Pendientes commit, PR, CI y merge. La pérdida de respuesta se simula descartando el resultado confirmado y recuperándolo desde otra conexión; no se cortó físicamente la red durante COMMIT. No hay endpoint HTTP, interfaz CSV, polling ni pruebas de carga.
