@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { RegistrationQueryError, type QueriedRegistration, type RegistrationPage } from "./api-registration-queries";
+import { normalizeRegistrationSearch, RegistrationQueryError, type QueriedRegistration, type RegistrationPage } from "./api-registration-queries";
 import type { ApiEvent } from "./api-event-queries";
 import "./registration-browser.css";
 
@@ -8,6 +8,7 @@ export interface RegistrationBrowserProps {
   enabled: boolean;
   event: Pick<ApiEvent, "id" | "name" | "timezone">;
   loadPage: (eventId: string, cursor: string | undefined, signal: AbortSignal) => Promise<RegistrationPage>;
+  searchPage?: (eventId: string, q: string, cursor: string | undefined, signal: AbortSignal) => Promise<RegistrationPage>;
   loadDetail: (eventId: string, registrationId: string, signal: AbortSignal) => Promise<QueriedRegistration>;
   onBack: () => void;
   onAccessInvalidated: () => void;
@@ -19,7 +20,11 @@ export default function RegistrationBrowser(props: RegistrationBrowserProps) {
   return props.enabled ? <Browser key={JSON.stringify([props.accountKey, props.event.id])} {...props} /> : null;
 }
 
-function Browser({ event, loadPage, loadDetail, onBack, onAccessInvalidated, onUnavailable }: RegistrationBrowserProps) {
+function Browser({ event, loadPage, searchPage, loadDetail, onBack, onAccessInvalidated, onUnavailable }: RegistrationBrowserProps) {
+  const [draft, setDraft] = useState("");
+  const [executed, setExecuted] = useState<string | null>(null);
+  const activeTerm = useRef<string | null>(null);
+  const [inputError, setInputError] = useState<string | null>(null);
   const [items, setItems] = useState<QueriedRegistration[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -60,19 +65,22 @@ function Browser({ event, loadPage, loadDetail, onBack, onAccessInvalidated, onU
     setError(failure.message);
     if (["authentication", "interaction_required", "unauthorized", "forbidden", "not_found"].includes(failure.kind)) {
       // Un 404 del detalle puede significar pérdida de acceso al evento: no conservar su listado.
-      setItems([]); setDetail(null); setCursor(null); setLoaded(false); setBlocked(true); usedCursors.current.clear();
+      setDraft(""); setExecuted(null); setInputError(null); setItems([]); setDetail(null); setCursor(null); setLoaded(false); setBlocked(true); usedCursors.current.clear();
       if (failure.kind === "not_found") onUnavailable();
       else onAccessInvalidated();
     }
     if (failure.kind === "validation" || failure.kind === "invalid_response") { setCursor(null); setRestartRequired(true); }
   }
-  async function page(more = false) {
+  async function page(more = false, term: string | null = executed) {
     if (active.current || blocked || (more && !cursor)) return;
     const next = more ? cursor! : undefined;
+    activeTerm.current = term;
     const request = begin();
     if (!more) { setItems([]); setCursor(null); setLoaded(false); usedCursors.current.clear(); }
     try {
-      const result = await loadPage(event.id, next, request.signal);
+      const result = term !== null && searchPage
+        ? await searchPage(event.id, term, next, request.signal)
+        : await loadPage(event.id, next, request.signal);
       if (!request.current()) return;
       if (result.items.some(item => item.eventId !== event.id) ||
           (result.nextCursor && (result.nextCursor === next || usedCursors.current.has(result.nextCursor)))) {
@@ -83,6 +91,18 @@ function Browser({ event, loadPage, loadDetail, onBack, onAccessInvalidated, onU
       setCursor(result.nextCursor); setLoaded(true); setRestartRequired(false);
     } catch (cause) { if (request.current()) failed(cause); }
     finally { if (request.current()) { active.current = null; setBusy(false); } }
+  }
+  function search() {
+    if (blocked || !searchPage) return;
+    let term: string;
+    try { term = normalizeRegistrationSearch(draft); }
+    catch { setInputError("Escribe entre 1 y 100 caracteres, sin saltos de línea ni tabulaciones."); return; }
+    if (active.current && activeTerm.current === term) return;
+    cancel(); setInputError(null); setExecuted(term); setRestartRequired(false); void page(false, term);
+  }
+  function clearSearch() {
+    if (blocked) return;
+    cancel(); setDraft(""); setExecuted(null); setInputError(null); setRestartRequired(false); void page(false, null);
   }
   async function open(id: string) {
     if (active.current || blocked) return;
@@ -115,9 +135,20 @@ function Browser({ event, loadPage, loadDetail, onBack, onAccessInvalidated, onU
     {error && <p role="alert" className="registration-browser-error">{error}</p>}
     {blocked && <p>Vuelve al evento y comprueba el acceso antes de continuar.</p>}
     {!blocked && !selected && <>
-      <button type="button" disabled={busy} onClick={() => void page()}>{loaded ? "Actualizar inscripciones" : "Cargar inscripciones"}</button>
+      {searchPage && <form onSubmit={e => { e.preventDefault(); search(); }} aria-label="Buscar inscripciones">
+        <label htmlFor="registration-search">Nombre o correo</label>
+        <input id="registration-search" type="search" value={draft} maxLength={200} autoComplete="off"
+          aria-describedby="registration-search-help" aria-invalid={inputError ? true : undefined}
+          onChange={e => { setDraft(e.target.value); setInputError(null); }} />
+        <p id="registration-search-help">Busca por parte del nombre o correo. Se conservan los acentos.</p>
+        <button type="submit">Buscar</button>
+        <button type="button" onClick={clearSearch}>Limpiar búsqueda</button>
+        {inputError && <p role="alert">{inputError}</p>}
+      </form>}
+      {executed !== null && <p role="status">Resultados para: <strong>{executed}</strong></p>}
+      <button type="button" disabled={busy} onClick={() => void page()}>{executed !== null ? "Repetir búsqueda" : loaded ? "Actualizar inscripciones" : "Cargar inscripciones"}</button>
       {!loaded && !busy && !error && <p>Carga las inscripciones de este evento.</p>}
-      {loaded && items.length === 0 && !busy && <p>Este evento todavía no tiene inscripciones.</p>}
+      {loaded && items.length === 0 && !busy && <p>{executed !== null ? "No se encontraron coincidencias." : "Este evento todavía no tiene inscripciones."}</p>}
       {items.length > 0 && <>
         <p>El listado no está ordenado por fecha. Incluye inscripciones canceladas.</p>
         <ul className="registration-browser-list">{items.map(item => <li key={item.id}>
@@ -130,7 +161,7 @@ function Browser({ event, loadPage, loadDetail, onBack, onAccessInvalidated, onU
         <p aria-live="polite">{items.length} {items.length === 1 ? "inscripción cargada" : "inscripciones cargadas"}.</p>
       </>}
       {cursor && <button type="button" disabled={busy} onClick={() => void page(true)}>Cargar más inscripciones</button>}
-      {restartRequired && <p>Actualiza las inscripciones para reiniciar el listado.</p>}
+      {restartRequired && <p>{executed !== null ? "Repite la consulta para reiniciar el listado." : "Actualiza las inscripciones para reiniciar el listado."}</p>}
       {loaded && !cursor && !error && !restartRequired && items.length > 0 && <p>Fin del listado.</p>}
     </>}
     {!blocked && selected && <>

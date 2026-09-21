@@ -1,10 +1,10 @@
-# Búsqueda interna de inscripciones
+# Búsqueda de inscripciones
 
 OE-03-003A / Issue #53 / RF-ATT-003 (parcial).
 
 ## Contrato
 
-`searchRegistrationsForStaff(db, eventId, input, actor)` devuelve `{ items, nextCursor }`. Es una operación interna: no hay ruta HTTP nueva ni pantalla. Reutiliza la proyección de lectura (id, eventId, status, source, createdAt y attendee con id, fullName, email); no expone credenciales QR, datos de usuario ni metadata de importación.
+`searchRegistrationsForStaff(db, eventId, input, actor)` devuelve `{ items, nextCursor }`. Es la operación interna incorporada en A; el transporte HTTP y la pantalla de organizadores se describen más abajo. Reutiliza la proyección de lectura (id, eventId, status, source, createdAt y attendee con id, fullName, email); no expone credenciales QR, datos de usuario ni metadata de importación.
 
 `input` es un objeto estricto con `q` obligatorio, `limit` y `cursor` opcionales. `q` admite hasta 200 unidades UTF-16 antes de recortar espacios exteriores y entre 1 y 100 después; rechaza controles ASCII, incluidos tabulaciones y saltos de línea. Conserva espacios interiores, acentos y representación Unicode. No ofrece búsqueda difusa ni normalización de acentos. `limit` es una cadena decimal canónica de 1 a 100; por defecto 20, igual que las consultas existentes. No se convierte automáticamente desde números o arrays.
 
@@ -19,7 +19,7 @@ El actor proviene del verificador existente: tenantId y objectId UUID normalizad
 | organizer | organizer |
 | checkin_operator | checkin_operator |
 
-Si posee ambos roles, cualquiera de esas asignaciones compatibles permite consultar. admin solo no permite acceso. No se provisiona un usuario desconocido ni se administra personal. Identidad mal formada produce AuthenticationError; rol no admitido o usuario deshabilitado, AuthorizationError; usuario desconocido, asignación incompatible/ausente o evento inaccesible, EventNotFoundError. No se definen respuestas HTTP en esta entrega.
+Si posee ambos roles, cualquiera de esas asignaciones compatibles permite consultar. admin solo no permite acceso. No se provisiona un usuario desconocido ni se administra personal. Identidad mal formada produce AuthenticationError; rol no admitido o usuario deshabilitado, AuthorizationError; usuario desconocido, asignación incompatible/ausente o evento inaccesible, EventNotFoundError. Las respuestas del adaptador HTTP se describen más abajo.
 
 La transacción toma bloqueos SHARE en orden usuario, asignación, evento, como las lecturas existentes. Mantiene la autorización durante esa lectura y la comprueba de nuevo para cada página. Esto no reserva páginas futuras. No modifica el contrato ni los permisos de listado/detalle existentes.
 
@@ -44,7 +44,7 @@ Incluye coincidencias, literales especiales, entradas inválidas, aislamiento de
 
 Privacidad: se desactivan los logs automáticos de solicitudes de Fastify en buildApp mediante LogController. Se conservan logs explícitos con códigos fijos; el endpoint no registra consulta, cursor, token, resultados ni excepción original. Esto elimina los mensajes automáticos de entrada/finalización y sus tiempos para toda la aplicación. No elimina URL del historial del cliente ni de proxies externos: evitar registrar query strings allí antes de desplegar. La respuesta usa no-store, pero ese encabezado no borra logs ni historial.
 
-Validación del agente en copia aislada: typecheck, lint y build correctos; 164 pruebas focalizadas (27 HTTP nuevas, 11 PostgreSQL nuevas y 126 regresiones). Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.692 pruebas aprobadas (656 API, 698 web y 338 de integración PostgreSQL), typecheck, lint y build correctos. Las 164 focalizadas están incluidas en el total y no se suman nuevamente. git diff --check sin errores de espacios; solo avisos CRLF a LF. Pendientes commit, PR, CI y merge. Sin migraciones ni dependencias nuevas. Decisiones ADR-041 a ADR-043. RF-ATT-003 sigue parcial.
+Validación del agente en copia aislada: typecheck, lint y build correctos; 164 pruebas focalizadas (27 HTTP nuevas, 11 PostgreSQL nuevas y 126 regresiones). Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.692 pruebas aprobadas (656 API, 698 web y 338 de integración PostgreSQL), typecheck, lint y build correctos. Las 164 focalizadas están incluidas en el total y no se suman nuevamente. git diff --check sin errores de espacios; solo avisos CRLF a LF. Integrado mediante PR #56: implementación ae48c49, merge 9b55ae5. CI aprobado según el mantenedor; main local sincronizado y limpio y rama local/remota eliminada, según la salida compartida. Sin migraciones ni dependencias nuevas. Decisiones ADR-041 a ADR-043. RF-ATT-003 sigue parcial.
 
 
 #### Contrato de transporte de búsqueda
@@ -59,3 +59,21 @@ Validación del agente en copia aislada: typecheck, lint y build correctos; 164 
 - No hay cambios en los permisos de las rutas previas. La búsqueda no otorga permisos para detalle, alta, importación o check-in.
 
 Se elige GET para una consulta sin efectos de escritura, reutilizando el contrato existente q/limit/cursor y su validación de parámetros repetidos. No usar URL de búsqueda como enlace compartido ni registrar la query en infraestructura. El control de logs aquí cubre la aplicación; el despliegue debe configurar su propio acceso/proxy. El control de logs usa la API LogController disponible en Fastify 5.12.4 del lockfile actual; no se modifica package.json ni el lockfile.
+
+
+### Búsqueda web para organizadores - OE-03-003C (Issue #57)
+
+Desde el detalle de un evento, «Ver inscripciones» permite buscar por nombre o correo mediante «Buscar» o Enter, repetir la consulta y limpiar para volver al listado general. El texto en edición y el término ejecutado son estados distintos: cada página usa el término ejecutado y su cursor; una búsqueda nueva reinicia resultados y paginación.
+
+La web usa la cuenta verificada, el scope configurado y el evento seleccionado. Cancela peticiones y descarta respuestas tardías al cambiar búsqueda, cuenta, evento, acceso o cerrar sesión. Conserva listado/detalle y restauración de foco. La consulta y los resultados quedan solo en memoria de esta vista. No se escriben en storage, URL de navegación ni logs propios. La petición GET sí contiene q y cursor: herramientas de red e infraestructura pueden observarlos.
+
+Verificación del agente en copia aislada: typecheck, lint y build aprobados; 240 pruebas focalizadas aprobadas, incluidas 49 nuevas (25 del cliente, 19 de la vista y 5 de sesión). Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.741 pruebas aprobadas (656 API, 747 web y 338 de integración PostgreSQL), typecheck, lint y build correctos. Las 240 focalizadas están incluidas en el total y no se suman nuevamente. git diff --check sin errores. Evidencia manual aportada: búsqueda por nombre y correo, apertura del detalle, retorno conservando el término ejecutado, estado sin coincidencias y limpieza del campo que devuelve la vista al listado general. Las capturas finales de limpieza no muestran las tarjetas inferiores; no acreditan paginación de más de 20 resultados, cambio de cuenta ni respuestas tardías en navegador. Estos escenarios cuentan con cobertura automatizada. Pendientes commit, PR, CI y merge. Rama feat/57-registration-search-web. Sin cambios de API, esquema ni dependencias. ADR-044 a ADR-046. RF-ATT-003 sigue parcial: interfaz de operadores y búsqueda por código quedan fuera de esta entrega.
+
+#### Consumo web de búsqueda
+
+- GET a la ruta existente con q recortado (1..100 unidades UTF-16, máximo original 200, sin controles ASCII), limit=20 y cursor opaco opcional de hasta 240 caracteres base64url. URLSearchParams codifica los literales una sola vez. El listado normal mantiene su límite anterior de cursor, 150.
+- Coincidencias parciales según la API; acentos conservados. Orden por UUID, sin total ni snapshot. El cursor se reutiliza únicamente con el término ejecutado exacto. Cambiar mayúsculas exige buscar de nuevo.
+- Token silencioso de la cuenta verificada y scope configurado. Sin cookies, redirecciones ni caché; timeout de 15 segundos para fetch/JSON. No hay reintentos automáticos.
+- Valida proyección, evento, UUID, estados, fechas, nombres/correos, cantidad, IDs únicos/ordenados y cursores; no muestra datos de una respuesta inválida. Comprueba vigencia y abort antes/después de token, fetch y JSON. La vista añade secuencia para descartar respuestas fuera de orden.
+- 400 o respuesta inválida: mensaje seguro y reinicio desde «Repetir búsqueda»; 401/403 y fallo de autenticación: elimina datos e invalida acceso; 404: elimina el evento inaccesible sin invalidar toda la sesión. Fallos temporales permiten repetir la búsqueda ejecutada. Mensajes nunca incorporan cuerpos de error ni excepción original.
+- La vuelta desde detalle conserva la búsqueda y el borrador; el detalle puede actualizar una fila. Repetir búsqueda recupera coincidencias actuales. Cambiar de evento o cuenta destruye el estado de la vista.

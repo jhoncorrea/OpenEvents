@@ -38,6 +38,7 @@ interface Props {
   loadDetail: (id: string, signal: AbortSignal) => Promise<ApiEvent>;
   saveEvent: (id: string, input: EditEventPayload, signal: AbortSignal) => Promise<ApiEvent>;
   registerAttendee?: (id: string, input: RegistrationPayload, signal: AbortSignal) => Promise<ApiRegistration>;
+  searchRegistrations?: RegistrationBrowserProps["searchPage"];
   loadRegistrations?: RegistrationBrowserProps["loadPage"];
   loadRegistrationDetail?: RegistrationBrowserProps["loadDetail"];
   uncertainRegistrationIds?: ReadonlySet<string>;
@@ -60,7 +61,7 @@ export default function MyEvents(props: Props) {
   return props.enabled ? <EventBrowser key={props.accountKey} {...props} /> : null;
 }
 
-function EventBrowser({ sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
+function EventBrowser({ searchRegistrations, sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
   const [items, setItems] = useState<ApiEvent[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -220,7 +221,7 @@ function EventBrowser({ sendCsv, lookupCsv, accountKey, loadPage, loadDetail, sa
     />}
     {browsingRegistrations && loadRegistrations && loadRegistrationDetail && !blocked && <Suspense fallback={<p role="status">Cargando inscripciones…</p>}>
       <RegistrationBrowser accountKey={accountKey} enabled={!blocked} event={browsingRegistrations}
-        loadPage={loadRegistrations} loadDetail={loadRegistrationDetail}
+        loadPage={loadRegistrations} searchPage={searchRegistrations} loadDetail={loadRegistrationDetail}
         onBack={() => { const id = browsingRegistrations.id; setBrowsingRegistrations(null); setDetail(null); void open(id); }}
         onAccessInvalidated={() => failed(new EventQueryError("unauthorized"))}
         onUnavailable={() => {

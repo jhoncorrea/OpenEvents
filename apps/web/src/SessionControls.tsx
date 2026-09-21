@@ -281,6 +281,26 @@ function AccountControls({
       throw error;
     }
   }
+  async function searchRegistrations(eventId: string, q: string, cursor: string | undefined, signal: AbortSignal) {
+    const checkCurrent = () => {
+      if (signal.aborted || !isCurrentAccount()) throw new RegistrationQueryError("cancelled");
+    };
+    checkCurrent();
+    if (!account || !canCreate || busy || operationLock.current) throw new RegistrationQueryError("unauthorized");
+    try {
+      let config;
+      try { config = parseAuthConfig(import.meta.env); } catch { throw new RegistrationQueryError("configuration"); }
+      const { searchApiRegistrations } = await import("./api-registration-queries");
+      checkCurrent();
+      const result = await searchApiRegistrations({ instance, account, apiScope: config.apiScope,
+        apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, q, cursor, signal, isCurrent: isCurrentAccount });
+      checkCurrent();
+      return result;
+    } catch (error) {
+      checkCurrent();
+      throw error;
+    }
+  }
   async function queryRegistrationDetail(eventId: string, registrationId: string, signal: AbortSignal) {
     const checkCurrent = () => {
       if (signal.aborted || !isCurrentAccount()) throw new RegistrationQueryError("cancelled");
@@ -481,6 +501,7 @@ function AccountControls({
             sendCsv={(id, key, bytes, signal) => csvOperation(id, key, signal, bytes)}
             lookupCsv={(id, key, signal) => csvOperation(id, key, signal)}
             registerAttendee={handleRegistration}
+            searchRegistrations={searchRegistrations}
             loadRegistrations={queryRegistrations}
             loadRegistrationDetail={queryRegistrationDetail}
             uncertainRegistrationIds={uncertainRegistrationIds.current}

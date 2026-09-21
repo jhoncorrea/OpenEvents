@@ -1,6 +1,6 @@
 # ADR-043: Autorización y respuestas HTTP de búsqueda
 
-Estado: propuesto en issue #55; pendiente de integración.
+Estado: aceptado; integrado mediante PR #56, merge 9b55ae5.
 
 ## Contexto
 
