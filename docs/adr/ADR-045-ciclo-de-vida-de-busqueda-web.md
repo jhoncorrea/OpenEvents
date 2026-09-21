@@ -1,6 +1,6 @@
 # ADR-045: Ciclo de vida de busqueda web
 
-Estado: propuesto en issue #57; pendiente de integración.
+Estado: aceptado; integrado mediante PR #58, merge 7295b77.
 
 ## Contexto
 
