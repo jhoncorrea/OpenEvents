@@ -1,0 +1,6 @@
+.registration-csv { display: grid; gap: 1rem; }
+.registration-csv p { margin: 0; }
+.registration-csv input[type="file"] { max-width: 100%; padding: .75rem; border: 1px solid #b9ccc2; border-radius: .5rem; }
+.registration-csv code { overflow-wrap: anywhere; }
+.csv-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.csv-recovery { padding: 1rem; border: 1px solid #b9ccc2; border-radius: .75rem; background: #f4f8f5; }

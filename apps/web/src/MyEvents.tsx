@@ -1,3 +1,4 @@
+import RegistrationCsvForm, { type RegistrationCsvFormProps } from "./RegistrationCsvForm";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { EventQueryError, type ApiEvent, type ApiEventPage } from "./api-event-queries";
 import type { EditEventPayload } from "./api-event-edits";
@@ -29,6 +30,8 @@ const EditEventForm = lazy(() => import("./EditEventForm").catch(() => ({
 })));
 
 interface Props {
+  sendCsv?: RegistrationCsvFormProps["send"];
+  lookupCsv?: RegistrationCsvFormProps["lookup"];
   accountKey: string;
   enabled: boolean;
   loadPage: (cursor: string | undefined, signal: AbortSignal) => Promise<ApiEventPage>;
@@ -57,12 +60,13 @@ export default function MyEvents(props: Props) {
   return props.enabled ? <EventBrowser key={props.accountKey} {...props} /> : null;
 }
 
-function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
+function EventBrowser({ sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
   const [items, setItems] = useState<ApiEvent[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<ApiEvent | null>(null);
+  const [csvEvent, setCsvEvent] = useState<ApiEvent | null>(null);
   const [editing, setEditing] = useState<ApiEvent | null>(null);
   const [registering, setRegistering] = useState<ApiEvent | null>(null);
   const [browsingRegistrations, setBrowsingRegistrations] = useState<ApiEvent | null>(null);
@@ -78,7 +82,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
   const returnButton = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => () => { sequence.current++; active.current?.abort(); }, []);
-  useEffect(() => { if (selected && !editing && !registering && !browsingRegistrations) heading.current?.focus(); }, [selected, editing, registering, browsingRegistrations]);
+  useEffect(() => { if (selected && !csvEvent && !editing && !registering && !browsingRegistrations) heading.current?.focus(); }, [selected, csvEvent, editing, registering, browsingRegistrations]);
   useEffect(() => () => { onEditingChange?.(false); }, [onEditingChange]);
 
   function changeEditing(event: ApiEvent | null) {
@@ -104,7 +108,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
     const failure = cause instanceof EventQueryError ? cause : new EventQueryError("unavailable");
     if (failure.kind === "cancelled") return;
     if (["authentication", "interaction_required", "unauthorized", "forbidden"].includes(failure.kind)) {
-      setItems([]); setDetail(null); setBrowsingRegistrations(null); changeEditing(null); changeRegistering(null); setCursor(null); setBlocked(true);
+      setItems([]); setDetail(null); setCsvEvent(null); setBrowsingRegistrations(null); changeEditing(null); changeRegistering(null); setCursor(null); setBlocked(true);
       onAccessInvalidated();
     }
     setError(failure.message);
@@ -126,7 +130,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
     } catch (cause) { if (request.current()) failed(cause); }
     finally { if (request.current()) { active.current = null; setBusy(false); } }
   }
-  async function open(id: string, button?: HTMLButtonElement, mode: "view" | "edit" | "register" | "registrations" = "view") {
+  async function open(id: string, button?: HTMLButtonElement, mode: "view" | "edit" | "register" | "registrations" | "csv" = "view") {
     if (active.current || blocked) return;
     if (button) returnButton.current = button;
     setSelected(id); setDetail(null);
@@ -136,6 +140,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
       if (request.current()) {
         setDetail(event);
         setItems(previous => previous.map(item => item.id === event.id ? event : item));
+        if (mode === "csv") { setCsvEvent(event); onEditingChange?.(true); }
         if (mode === "registrations") setBrowsingRegistrations(event);
         if (mode === "register" && !registrationBlocked(id)) {
           if (event.status === "draft" || event.status === "active") changeRegistering(event);
@@ -162,7 +167,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
   return <section className="my-events" aria-label="Mis eventos">
     <div className="my-events-header">
       <h2 ref={heading} tabIndex={-1}>{selected ? "Detalle del evento" : "Mis eventos"}</h2>
-      {!editing && !registering && !browsingRegistrations && (selected
+      {!csvEvent && !editing && !registering && !browsingRegistrations && (selected
         ? <button type="button" onClick={back}>Volver al listado</button>
         : <button type="button" disabled={busy || blocked} onClick={() => void page()}>{loaded ? "Actualizar listado" : "Cargar eventos"}</button>)}
     </div>
@@ -188,7 +193,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
       </>}
       {cursor && <button type="button" disabled={busy} onClick={() => void page(true)}>Cargar más eventos</button>}
     </>}
-    {selected && detail && !blocked && !editing && !registering && !browsingRegistrations && <><dl className="my-events-detail">
+    {selected && detail && !blocked && !csvEvent && !editing && !registering && !browsingRegistrations && <><dl className="my-events-detail">
       <dt>Nombre</dt><dd>{detail.name}</dd>
       <dt>Estado</dt><dd>{statusLabels[detail.status]}</dd>
       <dt>Ubicación</dt><dd>{detail.location}</dd>
@@ -198,6 +203,7 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
       <dt>Slug</dt><dd>{detail.slug}</dd>
       <dt>Identificador</dt><dd>{detail.id}</dd>
     </dl>
+      {sendCsv && lookupCsv && <button type="button" disabled={busy} onClick={() => void open(detail.id, undefined, "csv")}>{detail.status === "draft" || detail.status === "active" ? "Importar CSV" : "Recuperar importación CSV"}</button>}
       {loadRegistrations && loadRegistrationDetail && <button type="button" disabled={busy}
         onClick={() => void open(detail.id, undefined, "registrations")}>Ver inscripciones</button>}
       {detail.status === "draft" && <button type="button" disabled={busy} onClick={() => void open(detail.id, undefined, "edit")}>Editar evento</button>}
@@ -205,6 +211,13 @@ function EventBrowser({ accountKey, loadPage, loadDetail, saveEvent, registerAtt
         disabled={busy || registrationBlocked(detail.id)} onClick={() => void open(detail.id, undefined, "register")}>Registrar asistente</button>}
       {registrationBlocked(detail.id) && <p role="alert">Hay una inscripción con resultado pendiente de verificar. Podría haberse guardado. No vuelvas a enviarla; consulta con el organizador responsable antes de continuar.</p>}
     </>}
+    {csvEvent && sendCsv && lookupCsv && !blocked && <RegistrationCsvForm accountKey={accountKey} enabled={!blocked} event={csvEvent}
+      send={sendCsv} lookup={lookupCsv}
+      onBack={() => { const id = csvEvent.id; setCsvEvent(null); onEditingChange?.(false); void open(id); }}
+      onAccessInvalidated={() => failed(new EventQueryError("unauthorized"))}
+      onUnavailable={() => { const id = csvEvent.id; setCsvEvent(null); onEditingChange?.(false); setDetail(null); setSelected(null);
+        setItems(previous => previous.filter(item => item.id !== id)); setNotice("El evento ya no está disponible para tu cuenta."); }}
+    />}
     {browsingRegistrations && loadRegistrations && loadRegistrationDetail && !blocked && <Suspense fallback={<p role="status">Cargando inscripciones…</p>}>
       <RegistrationBrowser accountKey={accountKey} enabled={!blocked} event={browsingRegistrations}
         loadPage={loadRegistrations} loadDetail={loadRegistrationDetail}
