@@ -488,3 +488,20 @@ Concurrencia/carga: se acotan bytes, registros y errores, pero no se promete cap
 Experiencia: confundir registros con líneas o tomar filas parcialmente válidas como importables. El resultado inválido no contiene rows/count; la localización usa registro de datos desde 1 y línea inicial desde 1 incluyendo encabezado. El reporte no promete todos los errores tras un fallo estructural.
 
 ADR-023: formato y límites explícitos. ADR-024: validación completa sin lote parcial. ADR-025: diagnósticos acotados sin valores personales. Próximo paso: copiar esta evidencia documental, revisar el diff preparado y crear commit/PR. No es necesario repetir las pruebas por este ajuste exclusivamente documental. Registrar el número real del PR y el resultado del CI antes del cierre.
+
+
+## 2026-09-20 — Cierre de OE-03-002A e implementación interna de OE-03-002B
+
+Issue #43 integrado por PR #44 (implementación 5b0f09b; merge 4fd3e88). CI de main 35555184478: Success, 2 min 27 s según la salida aportada; conclusion y SHA verificados en GitHub. El mantenedor confirmó main/origin/main limpios en 4fd3e88 y eliminación de la rama local y remota. Esto cierra los pendientes del registro anterior, sin declarar terminada RF-ATT-002.
+
+Issue #45 creado mediante el formulario «Solicitar una funcionalidad»: problema, solución, beneficiario Organizador, área API, criterios, alternativas, contexto y validación de alcance. Rama feat/45-registration-csv-import creada desde main limpio.
+
+Operación interna importRegistrationCsvForOrganizer: reutiliza CSV, verifica usuario/asignación/evento con SHARE, admite draft/active, inserta perfiles propios y confirmed/csv en una transacción. Inserciones ordenadas por correo ASCII y respuesta en orden original. Conflictos incluso con canceladas revierten todo; no reutiliza perfiles de otros eventos, no reintenta ni incorpora endpoint/migración/web.
+
+Evidencia del mantenedor: typecheck y lint API correctos; 64 pruebas de integración aprobadas (27 nuevas de persistencia CSV, 10 nuevas de concurrencia CSV, 20 y 7 existentes del alta manual). Las 37 nuevas ya estaban aprobadas en la copia de verificación. Ambos resultados se solapan y no se suman. Validación global posterior aportada por el mantenedor: 558 pruebas API, 635 web y 248 de integración, **1.441 aprobadas**; typecheck, lint y build globales correctos, git diff --check sin errores. Pendientes commit, PR, CI y merge de #45.
+
+Seguridad: autorización antes de escrituras/conflictos persistidos; respuestas con datos personales solo internas. Pendiente adaptador autenticado y tratamiento seguro de errores SQL inesperados.
+Concurrencia: restricción única, transacción y orden de claves. Pruebas con conexiones independientes y espera de bloqueos reales; no hay garantía general de ausencia de deadlocks ni prueba de carga.
+Experiencia: todo el lote o nada ante fallos transaccionales conocidos. Una desconexión durante commit puede dejar resultado incierto; hace falta reconciliación antes de exponer HTTP. Repetir y recibir conflicto no equivale a idempotencia.
+
+Decisiones: ADR-026 atomicidad/autorización, ADR-027 conflictos/orden, ADR-028 resultado interno/reintentos. Siguiente: copiar la evidencia documental actualizada, revisar el diff preparado y crear el commit. No es necesario repetir las pruebas por este ajuste exclusivamente documental. El PDF y la imagen de cierre se generarán con el número real del PR y la evidencia del merge.
