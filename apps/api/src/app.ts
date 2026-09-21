@@ -1,8 +1,9 @@
+import { registerRegistrationSearchRoutes, type RegistrationSearchOperation } from "./modules/registrations/registration-search-routes.js";
 import { registerRegistrationCsvRoutes, type RegistrationCsvOperations } from "./modules/registrations/registration-csv-routes.js";
 import { registerRegistrationQueryRoutes, type RegistrationQueryOperations } from "./modules/registrations/registration-query-routes.js";
 import { registerAttendeeRoutes, type RegisterAttendeeOperation } from "./modules/registrations/registration-routes.js";
 import cors from "@fastify/cors";
-import Fastify from "fastify";
+import Fastify, { LogController } from "fastify";
 import { z } from "zod";
 import {
   createAuthGuard,
@@ -25,6 +26,7 @@ interface BuildAppOptions {
   eventQueries?: EventQueryOperations;
   registrationQueries?: RegistrationQueryOperations;
   registrationCsv?: RegistrationCsvOperations;
+  registrationSearch?: RegistrationSearchOperation;
   editEvent?: EditEventOperation;
   registerAttendee?: RegisterAttendeeOperation;
 }
@@ -36,10 +38,13 @@ export function buildApp({
   eventQueries,
   registrationQueries,
   registrationCsv,
+  registrationSearch,
   editEvent,
   registerAttendee,
 }: BuildAppOptions) {
   const app = Fastify({
+    // Las URL de búsqueda pueden contener PII. Mantener logs explícitos de códigos, sin URL automática.
+    logController: new LogController({ disableRequestLogging: true }),
     logger: logger
       ? {
           redact: ["req.headers.authorization"],
@@ -74,6 +79,8 @@ export function buildApp({
     verifyAccessToken,
     createEvent,
   });
+
+  if (registrationSearch) registerRegistrationSearchRoutes(app, verifyAccessToken, registrationSearch);
 
   if (registrationCsv) registerRegistrationCsvRoutes(app, verifyAccessToken, registrationCsv);
 

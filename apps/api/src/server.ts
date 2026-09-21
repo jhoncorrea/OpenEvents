@@ -1,3 +1,4 @@
+import { searchRegistrationsForStaff } from "./modules/registrations/search-registrations-for-staff.js";
 import { importRegistrationCsvIdempotently, queryRegistrationCsvImport } from "./modules/registrations/registration-csv-idempotency.js";
 import { listRegistrationsForOrganizer, getRegistrationForOrganizer } from "./modules/registrations/query-registrations-for-organizer.js";
 import { registerAttendeeForOrganizer } from "./modules/registrations/register-attendee-for-organizer.js";
@@ -31,6 +32,7 @@ const database = createDatabaseConnection({
 
 const app = buildApp({
   logger: true,
+  registrationSearch: (id, input, actor) => searchRegistrationsForStaff(database.db, id, input, actor),
   registrationCsv: {
     import: (id, key, bytes, actor) => importRegistrationCsvIdempotently(database.db, id, key, bytes, actor),
     get: (id, key, actor) => queryRegistrationCsvImport(database.db, id, key, actor),
