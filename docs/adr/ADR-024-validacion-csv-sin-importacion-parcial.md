@@ -1,6 +1,6 @@
 # ADR-024: Validación CSV sin lote parcialmente importable
 
-- Estado: Aceptado para Issue #43; pendiente de merge.
+- Estado: Aceptado e integrado mediante PR #44, merge 4fd3e88 (Issue #43).
 - Fecha: 2026-09-20
 
 ## Contexto

@@ -161,6 +161,7 @@ La historia principal mantiene su estimación original. A incorpora el alta API,
 
 | Parte | Alcance | Seguimiento |
 |---|---|---|
-| OE-03-002A | Validador interno de bytes CSV, normalización y reporte de errores sin escrituras. | Issue #43, rama `feat/43-registration-csv-validation`. Validación global confirmada por el mantenedor: 1.404 pruebas (558 API, 635 web y 211 de integración), typecheck, lint y build aprobados; práctica CSV válida/inválida y git diff --check correctos. Pendientes commit, PR, CI y merge. |
+| OE-03-002A | Validador interno de bytes CSV, normalización y reporte de errores sin escrituras. | Issue #43, rama `feat/43-registration-csv-validation`. Validación global confirmada por el mantenedor: 1.404 pruebas (558 API, 635 web y 211 de integración), typecheck, lint y build aprobados; práctica CSV válida/inválida y git diff --check correctos. Integrado mediante PR #44, merge `4fd3e88`; CI aprobado, main local sincronizado y rama eliminada. |
+| OE-03-002B | Importación interna autorizada y transaccional, conflictos y rollback del lote. | Issue #45, rama `feat/45-registration-csv-import`. 1.441 pruebas globales aprobadas (558 API, 635 web y 248 de integración), typecheck, lint y build correctos; git diff --check limpio según salida del mantenedor. Pendientes commit, PR, CI y merge. |
 
-Las siguientes entregas deben planificar autorización por evento, importación transaccional, conflictos persistidos/concurrentes, recuperación/idempotencia, endpoint y web. No se asignan números de issue ni se declaran implementadas. A no completa RF-ATT-002 ni la historia principal y no añade puntos a la estimación original.
+A aporta validación pura y B la persistencia interna autorizada. Las próximas entregas deben definir recuperación/idempotencia antes del endpoint y la web; no se asignan números de issue. A y B no completan RF-ATT-002 ni añaden puntos a la estimación original.

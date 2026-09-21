@@ -541,13 +541,23 @@ La entrega cuenta con pruebas focalizadas y capturas del recorrido real; la vali
 
 ### Validación interna de CSV — OE-03-002A (Issue #43)
 
-Implementada en `feat/43-registration-csv-validation`; validación global aprobada; pendientes commit, PR, CI y merge. `validateRegistrationCsv(bytes)` recibe Uint8Array (incluido Buffer), valida el archivo y devuelve filas normalizadas únicamente si todo es válido. No importa inscripciones, no accede a PostgreSQL ni ofrece endpoint HTTP o pantalla nueva.
+Integrada mediante PR #44, merge `4fd3e88`. CI posterior al merge aprobado; main local sincronizado y rama eliminada según evidencia del mantenedor. `validateRegistrationCsv(bytes)` recibe Uint8Array (incluido Buffer), valida el archivo y devuelve filas normalizadas únicamente si todo es válido. No importa inscripciones, no accede a PostgreSQL ni ofrece endpoint HTTP o pantalla nueva.
 
 Contrato: UTF-8 estricto con BOM inicial opcional, coma, LF/CRLF, encabezados fullName,email en orden; máximo 1 MiB y 500 registros de datos. Admite campos entre comillas y comillas escapadas. Reutiliza las reglas del alta manual y detecta correos repetidos dentro del archivo después de normalizarlos. Los errores incluyen código y localización cuando existe; se acotan a 100 con indicador de truncamiento, sin copiar datos personales.
 
 Validación focalizada aportada por el mantenedor: 56 pruebas del CSV y 46 del alta manual, **102 aprobadas**, tipos y lint API aprobados. Validación global posterior confirmada por la salida del mantenedor: **1.404 pruebas aprobadas** (558 API, 635 web y 211 de integración PostgreSQL), typecheck, lint y build. Las 102 focalizadas se solapan con la suite y no se suman. La práctica local confirmó dos registros normalizados para el archivo válido y tres errores esperados para el inválido, sin escrituras. git diff --check sin errores. Esto no acredita una importación persistida.
 
-Consulta el [contrato CSV](docs/architecture/registration-csv.md), los [ejemplos de práctica](docs/examples/registration-csv/README.md) y los ADR [023](docs/adr/ADR-023-formato-y-limites-de-csv.md), [024](docs/adr/ADR-024-validacion-csv-sin-importacion-parcial.md) y [025](docs/adr/ADR-025-diagnosticos-acotados-de-csv.md). RF-ATT-002 sigue pendiente: faltan autorización, persistencia, conflictos concurrentes, idempotencia y recorrido web.
+Consulta el [contrato CSV](docs/architecture/registration-csv.md), los [ejemplos de práctica](docs/examples/registration-csv/README.md) y los ADR [023](docs/adr/ADR-023-formato-y-limites-de-csv.md), [024](docs/adr/ADR-024-validacion-csv-sin-importacion-parcial.md) y [025](docs/adr/ADR-025-diagnosticos-acotados-de-csv.md). RF-ATT-002 sigue pendiente. OE-03-002B incorpora la operación interna autorizada y transaccional descrita a continuación; faltan recuperación/idempotencia, endpoint y recorrido web.
+
+### Importación interna de CSV — OE-03-002B (Issue #45)
+
+Implementada en `feat/45-registration-csv-import`; validación global aprobada; pendientes commit, PR, CI y merge. `importRegistrationCsvForOrganizer(db, eventId, bytes, actor)` reutiliza el validador y autoriza al organizador local activo y asignado al evento. Admite draft/active; crea inscripciones confirmed/csv y perfiles independientes por evento en una sola transacción.
+
+Un conflicto de correo, incluso con una inscripción cancelada, revierte todo el lote sin asistentes huérfanos. La restricción única de PostgreSQL decide también bajo concurrencia. Inserta inscripciones en orden ASCII de correo y devuelve los elementos en el orden original del CSV. No modifica la versión del evento, no reintenta y no incorpora rutas HTTP, pantalla, migraciones ni dependencias.
+
+Validación focalizada confirmada por el mantenedor: **64 pruebas de integración aprobadas** (27 de persistencia/autorización CSV, 10 de concurrencia CSV y 27 existentes del alta manual), tipos y lint API. Son 37 casos nuevos. Validación global posterior confirmada por el mantenedor: **1.441 pruebas aprobadas** (558 API, 635 web y 248 de integración PostgreSQL), typecheck, lint y build aprobados; git diff --check sin errores. Las 64 focalizadas se solapan con la suite global y no se suman. No se acredita carga ni recuperación ante pérdida de conexión durante el commit.
+
+Repetir un lote confirmado produce conflicto, no un resultado idempotente. El contrato, errores y límites están en [registration-csv.md](docs/architecture/registration-csv.md); decisiones [ADR-026](docs/adr/ADR-026-importacion-csv-atomica-y-autorizada.md), [ADR-027](docs/adr/ADR-027-conflictos-y-orden-de-importacion-csv.md) y [ADR-028](docs/adr/ADR-028-resultado-interno-y-reintentos-de-csv.md).
 
 ## Comandos
 

@@ -330,3 +330,14 @@ SessionControls captura la cuenta seleccionada y comprueba identidad vigente/can
 Las consultas usan GET, no-store, credentials omit y redirect error. Se valida la respuesta y se proyectan campos conocidos; se muestran textos mediante React, sin HTML del servidor. Los errores visibles no reproducen cuerpos internos. No-store no impide que un usuario autorizado copie datos. El aborto solo cancela la espera del cliente; la API mantiene su propia autorización.
 
 Las pruebas de sesión y componentes cubren cambios de cuenta, cierre de sesión, interacción MSAL, nueva comprobación de acceso y respuestas tardías. La evidencia manual disponible corresponde a una cuenta real. Siguen pendientes validación manual entre cuentas, auditoría operativa, rate limiting y carga. Leer el listado no desbloquea ni reconcilia automáticamente una inscripción de resultado incierto.
+
+
+## Importación interna de CSV — OE-03-002B (Issue #45)
+
+La operación recibe `AuthenticatedUser` de un llamador confiable. Exige organizer y UUID de tenantId/objectId; normaliza ambos y usa `entra:tenantId:objectId`, sin usar sub como clave local. No crea usuarios ni asignaciones. La función no verifica firmas JWT, azp ni scopes; esa responsabilidad corresponde al futuro adaptador HTTP autenticado, como en las rutas existentes.
+
+Tras validar el CSV sin I/O, abre una transacción y adquiere bloqueos SHARE en orden usuario, asignación, evento. Usuario inexistente, evento ajeno/inexistente o asignación ausente/no organizer producen EventNotFoundError; usuario disabled produce AuthorizationError. Solo draft/active permiten escrituras. Los bloqueos permanecen hasta terminar la transacción y coordinan cambios concurrentes de estado o permisos. Los diagnósticos previos describen exclusivamente el archivo recibido; nunca consultan correos persistidos antes de autorizar.
+
+La respuesta de éxito contiene datos personales y es de uso interno. El conflicto conocido se traduce después del rollback a RegistrationEmailConflictError sin valores SQL. Otros fallos se propagan internamente, por lo que el futuro adaptador debe impedir su exposición o registro indiscriminado. No se añaden logs, secretos, configuración de Entra ni auditoría operativa.
+
+Pruebas focalizadas de importación y regresión del alta manual: 64 aprobadas. Incluyen cambios de estado/usuario/asignación iniciados antes de la importación y comprobación de esperas reales mediante pg_blocking_pids; no constituyen pruebas de carga ni autenticación manual con otra cuenta real.

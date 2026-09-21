@@ -48,4 +48,42 @@ Cada error tiene code y message propios, sin valores de celdas ni excepciones de
 
 ## Garantías pendientes
 
-Rechazar el lote de validación no equivale a garantizar atomicidad en PostgreSQL. La futura importación debe autorizar por evento, verificar estado, tratar duplicados persistidos y carreras, y definir transacción e idempotencia. No se puede declarar completa RF-ATT-002 con este validador.
+Rechazar el lote de validación no equivale a garantizar atomicidad en PostgreSQL. OE-03-002B añade autorización, estado, conflictos persistidos y transacción según el contrato siguiente. La idempotencia y recuperación permanecen pendientes. No se puede declarar completa RF-ATT-002 con este validador.
+
+
+## Operación interna de importación — OE-03-002B (Issue #45)
+
+`importRegistrationCsvForOrganizer(db: NodePgDatabase, eventIdInput: unknown, bytes: Uint8Array, actor: AuthenticatedUser): Promise<RegistrationCsvImportResult>`.
+
+1. Exige rol organizer, valida identidad tenantId/objectId y UUID del evento. Reutiliza el validador síncrono antes del primer await: no conserva una referencia mutable al contenido para interpretarla después. Un CSV inválido lanza RegistrationCsvValidationError con code INVALID_REGISTRATION_CSV y result igual al resultado inválido del validador, sin filas.
+2. Abre una transacción. Lee y bloquea con SHARE usuario local, asignación organizer y evento, en ese orden. Rechaza usuarios deshabilitados, asignaciones ajenas/ausentes y eventos fuera de draft/active. No aprovisiona identidad ni personal.
+3. Crea perfiles nuevos con UUID propios y campos normalizados mediante una inserción de lote. No consulta ni reutiliza perfiles por correo de otros eventos.
+4. Inserta las inscripciones en orden ascendente de correo normalizado usando comparación ASCII, con status confirmed y source csv. La restricción registration_event_email_unique decide los conflictos, incluidas inscripciones canceladas. Ordenar reduce ciclos entre lotes inversos; no promete ausencia universal de deadlocks con otras operaciones.
+5. Relaciona RETURNING por attendeeId, reconstruye el orden original y solo resuelve tras completar la transacción. Si se invoca dentro de una transacción externa, el resultado queda sujeto al commit de esa transacción: un savepoint no es un commit independiente.
+
+Éxito: `{ eventId, count, items }`, cada item contiene id, eventId, status confirmed, source csv, createdAt como Date y attendee `{ id, fullName, email }`. No incluye un identificador persistido de importación. Estos datos son personales; no registrarlos indiscriminadamente.
+
+### Errores internos y reversión
+
+| Error | Condición |
+|---|---|
+| AuthenticationError | Identidad tenantId/objectId mal formada. |
+| AuthorizationError | Rol global insuficiente o usuario local disabled. |
+| ZodError | Identificador de evento inválido. |
+| RegistrationCsvValidationError | CSV inválido; conserva errores y truncated del validador. |
+| EventNotFoundError | Usuario local ausente, asignación no organizer/ausente o evento ajeno/inexistente. |
+| EventRegistrationNotAllowedError | Evento closed/cancelled. |
+| RegistrationEmailConflictError | Violación de registration_event_email_unique, traducida después del rollback. |
+| Otros errores | Se propagan tras el manejo transaccional; no se traducen erróneamente como duplicados. |
+
+No hay escrituras antes de autorizar. Ante un conflicto o fallo de base de datos se revierte todo el lote, incluyendo los perfiles. No se devuelven filas parcialmente importadas ni se omiten duplicados. Los fallos ajenos a la restricción específica conservan su naturaleza interna. No se definen respuestas HTTP en esta entrega.
+
+### Concurrencia y reintentos
+
+Dos importaciones que comparten correos no pueden confirmar ambos lotes completos; la restricción única y el rollback impiden duplicados y asistentes huérfanos. El alta manual comparte la misma restricción. Eventos distintos permiten el mismo correo con perfiles independientes. No se cambia versión ni asignaciones del evento.
+
+No hay reintentos automáticos ni idempotencia. Reenviar un lote ya confirmado devuelve conflicto y no demuestra si una solicitud anterior fue la que lo creó. Una pérdida de conexión durante el commit puede dejar al llamador sin conocer el resultado; no se promete que todo rechazo de la promesa equivalga a ausencia de escrituras. Antes del endpoint deben definirse clave/registro de importación y reconciliación o una política explícita equivalente.
+
+### Evidencia del incremento
+
+37 pruebas nuevas con PostgreSQL: 27 de persistencia/autorización y 10 de concurrencia. El bloque del mantenedor incluye además 27 de alta manual, 64 aprobadas en total, con tipos y lint API correctos. Cubre límite de 500, orden devuelto, conflictos cancelled/confirmed, errores SQL reales, rollback, lotes superpuestos inversos y carrera con alta manual. Validación global posterior confirmada por el mantenedor: 1.441 pruebas aprobadas (558 API, 635 web y 248 de integración), typecheck, lint y build correctos, git diff --check limpio. Las 64 focalizadas no se suman al total global. Sin pruebas de carga, endpoint, pantalla ni simulación de caída durante commit.

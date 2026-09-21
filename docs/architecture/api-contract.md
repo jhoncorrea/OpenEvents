@@ -503,4 +503,11 @@ Un 404 del detalle puede corresponder a inscripción ausente o evento inaccesibl
 
 ### Validador interno de CSV — OE-03-002A
 
-Issue #43 implementa `validateRegistrationCsv(Uint8Array)` sin ruta HTTP. La ruta de importación planificada no se considera implementada. El [contrato interno](registration-csv.md) devuelve un resultado válido con filas normalizadas, o inválido con errores acotados y sin lote importable. No valida permisos ni consulta duplicados persistidos. El futuro servicio deberá autorizar por evento y garantizar la política transaccional bajo concurrencia; esta validación previa no sustituye esas garantías.
+Issue #43 implementa `validateRegistrationCsv(Uint8Array)` sin ruta HTTP. La ruta de importación planificada no se considera implementada. El [contrato interno](registration-csv.md) devuelve un resultado válido con filas normalizadas, o inválido con errores acotados y sin lote importable. No valida permisos ni consulta duplicados persistidos. La operación interna de OE-03-002B añade autorización y persistencia transaccional; la validación previa no sustituye esas garantías.
+
+
+### Importación interna de CSV — OE-03-002B
+
+Issue #45 añade `importRegistrationCsvForOrganizer(db, eventId, bytes, actor)` sin endpoint HTTP. Recibe un actor ya autenticado por un adaptador confiable; no verifica un JWT por sí misma. Reutiliza permisos por evento y estados draft/active del alta manual, crea confirmed/csv y devuelve `{ eventId, count, items }` en orden de entrada. El [contrato interno](registration-csv.md) detalla transacción, errores y límites.
+
+No se asignan códigos HTTP ni se considera disponible una carga CSV desde Postman o la web. La futura ruta debe verificar token/cliente/scope, limitar el cuerpo y controlar la exposición de errores internos. La recuperación de resultados inciertos y la idempotencia deben definirse antes de exponerla. La consulta existente puede recuperar las inscripciones persistidas; no acredita qué petición las creó.
