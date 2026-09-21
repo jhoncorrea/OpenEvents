@@ -561,7 +561,7 @@ En esta operación sin clave, repetir un lote confirmado produce conflicto; la n
 
 ### Recuperación interna de importaciones CSV — OE-03-002C (Issue #47)
 
-Implementada en `feat/47-registration-csv-idempotency`; validación global aprobada; pendientes commit, PR, CI y merge. `importRegistrationCsvIdempotently(db, eventId, key, bytes, actor)` vincula una clave UUID al evento y organizador. La misma clave y los mismos bytes recuperan un comprobante histórico con los mismos identificadores; otro contenido acotado produce un conflicto de clave. `queryRegistrationCsvImport` devuelve completed o not_observed, que no prueba fallo ni ausencia de una operación en curso.
+Integrada mediante PR #48, merge `223d55b`; CI aprobado. Main local sincronizado y rama eliminada según evidencia del mantenedor del 21 de septiembre de 2026. `importRegistrationCsvIdempotently(db, eventId, key, bytes, actor)` vincula una clave UUID al evento y organizador. La misma clave y los mismos bytes recuperan un comprobante histórico con los mismos identificadores; otro contenido acotado produce un conflicto de clave. `queryRegistrationCsvImport` devuelve completed o not_observed, que no prueba fallo ni ausencia de una operación en curso.
 
 La migración 0004 añade registration_csv_import. Comprobante e inscripciones confirman juntos; READ COMMITTED y un bloqueo transaccional por ámbito coordinan solicitudes concurrentes. Se comprueban permisos actuales para importar, repetir y consultar. Recuperar historial admite eventos cerrados/cancelados; una nueva importación mantiene draft/active. No hay endpoint, pantalla ni reintentos automáticos.
 
@@ -590,3 +590,12 @@ pnpm test
 ## Licencia
 
 MIT.
+
+
+### CSV mediante HTTP - OE-03-002D (Issue #49)
+
+POST y GET `/api/v1/events/{eventId}/registrations/imports` requieren Bearer e Idempotency-Key UUID. POST recibe text/csv hasta 1 MiB como bytes originales y llama a la operación idempotente. GET consulta el comprobante con permisos actuales. Ambos expresan resultado confirmado con 200; GET también admite not_observed, que no significa fallo.
+
+Rama feat/49-registration-csv-http. Verificación del agente en copia aislada: typecheck y lint aprobados; 44 pruebas HTTP nuevas y 12 nuevas de integración PostgreSQL aprobadas. Regresión: 80 pruebas de rutas existentes y 35 de idempotencia aprobadas (171 casos distintos en total). Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: **1.532 pruebas aprobadas** (602 API, 635 web y 295 de integración PostgreSQL), typecheck, lint y build correctos. Las 171 focalizadas están incluidas y no se suman de nuevo. git diff --check sin errores de espacios, con avisos de normalización CRLF a LF. Pendientes commit, PR, CI y merge. Las pruebas HTTP sustituyen el verificador JWT; no equivalen a una prueba manual con Entra real.
+
+Sin pantalla CSV ni cambios de esquema. RF-ATT-002 continúa pendiente del recorrido web. Contrato completo en docs/architecture/api-contract.md; decisiones ADR-032, ADR-033 y ADR-034.

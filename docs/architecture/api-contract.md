@@ -520,3 +520,36 @@ Issue #47 añade `importRegistrationCsvIdempotently(db, eventId, key, bytes, act
 La importación devuelve `{ importId, completedAt, result }`; result conserva eventId, count e items del resultado original. La consulta devuelve `{ status: "completed", receipt }` o `{ status: "not_observed" }`. No se interpreta not_observed como operación fallida ni se genera otra clave automáticamente. El contrato completo, precedencia de errores y conservación se documentan en [registration-csv.md](registration-csv.md).
 
 Los errores propios REGISTRATION_CSV_KEY_CONFLICT e INVALID_STORED_REGISTRATION_CSV_RESULT son internos. El adaptador futuro deberá mapearlos y proteger errores SQL, sin publicar claves, huellas, snapshots o mensajes internos indiscriminadamente. La idempotencia no evita la necesidad de autorización ni garantiza disponibilidad inmediata de la base.
+
+
+## Importación y recuperación HTTP CSV - OE-03-002D (Issue #49)
+
+Rutas: `POST /api/v1/events/{eventId}/registrations/imports` y `GET /api/v1/events/{eventId}/registrations/imports`.
+Ambas requieren `Authorization: Bearer <access-token>` e `Idempotency-Key: <UUID>`. No admiten parámetros query. El GET no admite cuerpo.
+La clave se normaliza a minúsculas y queda fuera de la URL. Su ámbito sigue siendo evento y organizador; conocerla no concede acceso.
+
+El POST exige `Content-Type: text/csv`, opcionalmente `charset=utf-8` (con o sin comillas). Rechaza otros parámetros, JSON, multipart y cualquier Content-Encoding. Se reciben bytes originales, sin decodificar ni normalizar saltos de línea. Límite HTTP: 1.048.576 bytes. Permanecen 500 registros y 100 diagnósticos como límites de dominio.
+
+Primero se comprueban token/cliente/scope y organizer global mediante el guard existente; después UUID, clave y query, formato HTTP y cuerpo. La operación interna aplica autorización local vigente y las reglas de precedencia de OE-03-002C. No se invoca la primitiva sin clave.
+
+POST confirmado o repetido devuelve 200 con `{ status: "completed", receipt: { importId, completedAt, result: { eventId, count, items } } }`. No se distingue creación de replay ni se añade un campo replayed. Las fechas se serializan en UTC ISO. Los items contienen id, eventId, status, source, createdAt y attendee con id, fullName y email; no se publican otros campos internos.
+
+GET devuelve 200 con el mismo comprobante cuando está visible, o `{ status: "not_observed" }`. No espera la finalización de una importación ni acredita rollback. Ante incertidumbre, conservar clave y bytes para consultar o reenviar. El comprobante es histórico, no el estado actual de las inscripciones.
+
+| HTTP | Código | Significado |
+|---|---|---|
+| 400 | INVALID_REGISTRATION_CSV_REQUEST | UUID, clave, query o envoltura HTTP inválida. |
+| 400 | INVALID_REGISTRATION_CSV | CSV inválido; añade errors y truncated. |
+| 401 | UNAUTHORIZED | Token o identidad inválida; WWW-Authenticate: Bearer. |
+| 403 | FORBIDDEN | Cliente/scope/rol insuficiente o usuario deshabilitado. |
+| 404 | EVENT_NOT_FOUND | Evento inexistente o inaccesible; no revela pertenencia. |
+| 409 | REGISTRATION_CSV_KEY_CONFLICT | Misma clave con otros bytes dentro del límite. |
+| 409 | REGISTRATION_EMAIL_CONFLICT | Correo ya inscrito en el evento. |
+| 409 | EVENT_REGISTRATION_NOT_ALLOWED | Nueva importación en estado no permitido. |
+| 413 | PAYLOAD_TOO_LARGE | Cuerpo mayor que 1 MiB. |
+| 415 | UNSUPPORTED_MEDIA_TYPE | Content-Type o Content-Encoding no admitido. |
+| 500 | INTERNAL_SERVER_ERROR | Fallo inesperado o comprobante inválido; detalle interno oculto. |
+
+Los errores usan `{ code, message }`; INVALID_REGISTRATION_CSV añade hasta 100 diagnósticos con code, message y localización disponible (record, line, field, firstRecord), además de truncated. No contienen valores del CSV. Las respuestas de estas rutas llevan Cache-Control: no-store. Logs de error con código fijo, sin excepción original, CSV, clave ni comprobante.
+
+El parser está encapsulado y no altera JSON en otras rutas. CORS permite el encabezado solicitado desde el origen local ya configurado. No hay pantalla CSV, multipart, colas, nuevos reintentos, migraciones ni dependencias. Un error de transporte o 500 no demuestra ausencia de commit; la recuperación conserva las garantías internas.

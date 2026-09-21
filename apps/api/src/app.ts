@@ -1,3 +1,4 @@
+import { registerRegistrationCsvRoutes, type RegistrationCsvOperations } from "./modules/registrations/registration-csv-routes.js";
 import { registerRegistrationQueryRoutes, type RegistrationQueryOperations } from "./modules/registrations/registration-query-routes.js";
 import { registerAttendeeRoutes, type RegisterAttendeeOperation } from "./modules/registrations/registration-routes.js";
 import cors from "@fastify/cors";
@@ -23,6 +24,7 @@ interface BuildAppOptions {
   createEvent: CreateEventOperation;
   eventQueries?: EventQueryOperations;
   registrationQueries?: RegistrationQueryOperations;
+  registrationCsv?: RegistrationCsvOperations;
   editEvent?: EditEventOperation;
   registerAttendee?: RegisterAttendeeOperation;
 }
@@ -33,6 +35,7 @@ export function buildApp({
   createEvent,
   eventQueries,
   registrationQueries,
+  registrationCsv,
   editEvent,
   registerAttendee,
 }: BuildAppOptions) {
@@ -71,6 +74,8 @@ export function buildApp({
     verifyAccessToken,
     createEvent,
   });
+
+  if (registrationCsv) registerRegistrationCsvRoutes(app, verifyAccessToken, registrationCsv);
 
   if (registrationQueries) registerRegistrationQueryRoutes(app, verifyAccessToken, registrationQueries);
 
