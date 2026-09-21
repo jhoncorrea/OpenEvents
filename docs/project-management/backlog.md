@@ -165,7 +165,7 @@ La historia principal mantiene su estimación original. A incorpora el alta API,
 | OE-03-002B | Importación interna autorizada y transaccional, conflictos y rollback del lote. | Issue #45, rama `feat/45-registration-csv-import`. 1.441 pruebas globales aprobadas (558 API, 635 web y 248 de integración), typecheck, lint y build correctos; git diff --check limpio según salida del mantenedor. Integrado mediante PR #46, merge `3c716ea`; CI aprobado, main sincronizado y rama eliminada según el mantenedor. |
 | OE-03-002C | Idempotencia y recuperación interna de importaciones con comprobante persistido. | Issue #47, rama `feat/47-registration-csv-idempotency`. Migración y segunda ejecución correctas; 1.476 pruebas globales aprobadas (558 API, 635 web y 283 de integración), typecheck, lint y build correctos. git diff --check sin errores de espacios. Integrado mediante PR #48, merge `223d55b`; CI aprobado, main local sincronizado y rama eliminada según evidencia del mantenedor. |
 
-A aporta validación pura, B persistencia interna y C recuperación idempotente. Quedan endpoint y recorrido web; no se asignan números de issue futuros ni se declara completo RF-ATT-002. El desglose no añade puntos a la estimación original.
+A aporta validación pura, B persistencia interna y C recuperación idempotente. D incorporó HTTP (PR #50) y E incorporó la web (PR #52). El estado de aceptación global de RF-ATT-002 se evalúa por sus criterios, no solo por este desglose. El desglose no añade puntos a la estimación original.
 
 
 ### CSV mediante HTTP - OE-03-002D (Issue #49)
@@ -181,4 +181,22 @@ Sin pantalla CSV ni cambios de esquema. RF-ATT-002 continúa pendiente del recor
 
 La pantalla de importación y recuperación consume la API de OE-03-002D. Conserva clave y huella por cuenta/evento en sessionStorage antes de enviar; el CSV queda en memoria. Tras recarga o nueva autorización en la misma pestaña, permite consultar el comprobante y exige volver a seleccionar los mismos bytes para reenviar. not_observed mantiene incertidumbre. El comprobante histórico se distingue del estado actual.
 
-Verificación del agente en copia aislada: typecheck y lint correctos, 152 pruebas focalizadas aprobadas, con 63 casos nuevos. Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.595 pruebas aprobadas (602 API, 698 web y 295 de integración PostgreSQL), typecheck, lint y build correctos. Las 152 focalizadas están incluidas y no se suman de nuevo. git diff --check sin errores; solo avisos CRLF a LF. Evidencia manual: importación confirmada de dos inscripciones y recuperación del mismo comprobante, con igual identificador, fecha y cantidad, siguiendo el recorrido de recarga en la misma pestaña, cuenta y evento. Esta comprobación no cubre un corte de red real ni un cambio de cuenta. Pendientes commit, PR, CI y merge. Sin cambios de API, esquema ni dependencias. Detalles y límites en docs/architecture/registration-csv.md y ADR-035 a ADR-037. RF-ATT-002 no se declara completo automáticamente.
+Verificación del agente en copia aislada: typecheck y lint correctos, 152 pruebas focalizadas aprobadas, con 63 casos nuevos. Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.595 pruebas aprobadas (602 API, 698 web y 295 de integración PostgreSQL), typecheck, lint y build correctos. Las 152 focalizadas están incluidas y no se suman de nuevo. git diff --check sin errores; solo avisos CRLF a LF. Evidencia manual: importación confirmada de dos inscripciones y recuperación del mismo comprobante, con igual identificador, fecha y cantidad, siguiendo el recorrido de recarga en la misma pestaña, cuenta y evento. Esta comprobación no cubre un corte de red real ni un cambio de cuenta. Integrado mediante PR #52: implementación 88a0cb0, merge 69685f3. CI de main 35622349694 verificado completed / success. El mantenedor confirmó main/origin/main sincronizados y limpios, y la eliminación de la rama local y remota. Sin cambios de API, esquema ni dependencias. Detalles y límites en docs/architecture/registration-csv.md y ADR-035 a ADR-037. RF-ATT-002 no se declara completo automáticamente.
+
+
+## Desglose de OE-03-003 - Búsqueda de inscripciones
+
+| Parte | Alcance | Seguimiento |
+|---|---|---|
+| OE-03-003A | Búsqueda interna por nombre/correo, autorización de personal y paginación. | Issue #53, rama feat/53-registration-search. |
+
+Exposición HTTP, recorrido web y búsqueda por código siguen pendientes de planificación. No se asignan números de issue ni puntos adicionales. La búsqueda por código depende de las credenciales QR.
+
+
+### Búsqueda interna de inscripciones - OE-03-003A (Issue #53)
+
+Operación `searchRegistrationsForStaff` por evento, con coincidencia parcial de nombre o correo, paginación por UUID y cursor vinculado al término. Exige usuario activo y pareja compatible entre rol global y event_staff: organizer/organizer o checkin_operator/checkin_operator. Admin no hereda esos permisos. Cada página revalida la autorización.
+
+La búsqueda es de solo lectura, incluye canceladas con su estado y permite consultar todos los estados de evento. No amplía las rutas existentes, que siguen siendo exclusivas de organizadores. Sin HTTP, interfaz de búsqueda, QR, check-in, migraciones ni dependencias nuevas. RF-ATT-003 permanece parcial.
+
+Validación del agente en copia aislada: typecheck, lint y build correctos; 136 pruebas focalizadas aprobadas (27 nuevas de entrada, 32 nuevas PostgreSQL y 77 de regresión). Validación global confirmada por la salida del mantenedor del 21 de septiembre de 2026: 1.654 pruebas aprobadas (629 API, 698 web y 327 de integración PostgreSQL), typecheck, lint y build correctos. Las 136 focalizadas están incluidas en el total y no se suman nuevamente. git diff --check sin errores de espacios; solo avisos CRLF a LF. Pendientes commit, PR, CI y merge. Contrato en docs/architecture/registration-search.md y decisiones ADR-038 a ADR-040.
