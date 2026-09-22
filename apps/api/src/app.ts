@@ -1,3 +1,4 @@
+import { registerRegistrationCredentialRoutes, type IssueRegistrationCredentialOperation } from "./modules/registrations/registration-credential-routes.js";
 import { registerOperatorEventQueryRoutes, type OperatorEventQueryOperations } from "./modules/events/operator-event-query-routes.js";
 import { registerRegistrationSearchRoutes, type RegistrationSearchOperation } from "./modules/registrations/registration-search-routes.js";
 import { registerRegistrationCsvRoutes, type RegistrationCsvOperations } from "./modules/registrations/registration-csv-routes.js";
@@ -31,6 +32,7 @@ interface BuildAppOptions {
   registrationSearch?: RegistrationSearchOperation;
   editEvent?: EditEventOperation;
   registerAttendee?: RegisterAttendeeOperation;
+  issueRegistrationCredential?: IssueRegistrationCredentialOperation;
 }
 
 export function buildApp({
@@ -44,6 +46,7 @@ export function buildApp({
   registrationSearch,
   editEvent,
   registerAttendee,
+  issueRegistrationCredential,
 }: BuildAppOptions) {
   const app = Fastify({
     // Las URL de búsqueda pueden contener PII. Mantener logs explícitos de códigos, sin URL automática.
@@ -82,6 +85,8 @@ export function buildApp({
     verifyAccessToken,
     createEvent,
   });
+
+  if (issueRegistrationCredential) registerRegistrationCredentialRoutes(app, verifyAccessToken, issueRegistrationCredential);
 
   if (registrationSearch) registerRegistrationSearchRoutes(app, verifyAccessToken, registrationSearch);
 

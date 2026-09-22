@@ -1,6 +1,6 @@
 # ADR-055: Conflicto y límites de recuperación
 
-Estado: propuesto en issue #63; pendiente de integración.
+Estado: aceptado e integrado mediante PR #64 (merge 30aad88).
 
 ## Contexto
 

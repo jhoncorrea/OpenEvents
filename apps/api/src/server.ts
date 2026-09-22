@@ -14,6 +14,7 @@ import {
 } from "./config.js";
 import { createDatabaseConnection } from "./db/connection.js";
 import { createEventForOrganizer } from "./modules/events/create-event-for-organizer.js";
+import { issueRegistrationCredentialForOrganizer } from "./modules/registrations/issue-registration-credential-for-organizer.js";
 
 const { port, host } = parseApiConfig(process.env);
 const authConfig = parseAuthConfig(process.env);
@@ -33,6 +34,7 @@ const database = createDatabaseConnection({
 
 const app = buildApp({
   logger: true,
+  issueRegistrationCredential: (id, registrationId, actor) => issueRegistrationCredentialForOrganizer(database.db, id, registrationId, actor),
   registrationSearch: (id, input, actor) => searchRegistrationsForStaff(database.db, id, input, actor),
   registrationCsv: {
     import: (id, key, bytes, actor) => importRegistrationCsvIdempotently(database.db, id, key, bytes, actor),

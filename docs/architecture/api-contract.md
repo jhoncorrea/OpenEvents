@@ -265,7 +265,7 @@ El POST está implementado en OE-03-001A y los GET en OE-03-001C. Los GET actual
 | POST | `/api/v1/events/{eventId}/registrations/imports` | Organizer | Importar CSV |
 | GET | `/api/v1/events/{eventId}/registrations` | Organizer asignado | Listar con cursor (implementado) |
 | GET | `/api/v1/events/{eventId}/registrations/{registrationId}` | Organizer asignado | Consultar inscripción (implementado) |
-| POST | `/api/v1/events/{eventId}/registrations/{id}/qr` | Organizer | Emitir/reemitir QR |
+| POST | `/api/v1/events/{eventId}/registrations/{registrationId}/qr` | Organizer asignado | Emitir credencial opaca (JSON); reemisión e imagen QR pendientes |
 
 ## 5. Check-in
 
@@ -632,4 +632,41 @@ Validación del agente en copia aislada: 824 pruebas web aprobadas (77 nuevas: 4
 
 ## Operación interna de credenciales (OE-04-001A, #63)
 
-La emisión está implementada como función interna, no como endpoint. La ruta QR prevista en este contrato continúa pendiente: #63 no la registra ni define todavía su respuesta HTTP. `issueRegistrationCredentialForOrganizer(db, eventId, registrationId, actor)` recibe una identidad previamente autenticada; no verifica por sí misma un JWT. Devuelve id, eventId, registrationId, status active, issuedAt (Date) y token, únicamente al emitir. No devuelve hash ni datos del asistente. Véanse los errores, requisitos transaccionales y límites de entrega en [Credenciales de inscripción](registration-credentials.md).
+En #63 se implementó la función interna sin endpoint. #65 añade el adaptador HTTP descrito en la sección siguiente; imagen QR y reemisión siguen pendientes. `issueRegistrationCredentialForOrganizer(db, eventId, registrationId, actor)` recibe una identidad previamente autenticada; no verifica por sí misma un JWT. Devuelve id, eventId, registrationId, status active, issuedAt (Date) y token, únicamente al emitir. No devuelve hash ni datos del asistente. Véanse los errores, requisitos transaccionales y límites de entrega en [Credenciales de inscripción](registration-credentials.md).
+
+## Emisión HTTP de credenciales (#65)
+
+`POST /api/v1/events/{eventId}/registrations/{registrationId}/qr` invoca la operación de #63 con la identidad verificada. Se registra en buildApp mediante issueRegistrationCredential y el servidor la conecta a la conexión raíz de PostgreSQL. El nombre /qr sigue el contrato previsto, pero esta entrega produce JSON con el token; no una imagen.
+
+### Petición y orden de validación
+
+Bearer obligatorio y rol global organizer. La autorización local sigue exigiendo usuario activo y asignación organizer. El guard se ejecuta antes de comprobar cuerpo y parámetros. UUID de evento e inscripción se normalizan. No se aceptan parámetros de consulta, ni identidad, roles, token o datos de inscripción enviados por el cliente.
+
+Enviar sin cuerpo y sin Content-Type; Content-Length: 0 explícito está permitido. Un Content-Length distinto de 0 o Transfer-Encoding se rechaza con 400 antes del parser, incluido cuerpo JSON {}, null, texto o cuerpo superior al límite. Si no hay cuerpo declarado pero se envía Content-Type, devuelve 415 incluso para application/json o text/plain. Así no se confunde un objeto vacío con ausencia de cuerpo. El límite defensivo del parser es 1.024 bytes. Si llegan errores del parser de tamaño o tipo, se traducen a 413/415 con mensajes fijos; no se devuelve su texto original.
+
+### Respuesta
+
+201: objeto con id, eventId, registrationId, status active, issuedAt UTC ISO 8601 y token. La proyección explícita excluye tokenHash y campos adicionales. La operación se espera hasta confirmar la transacción raíz. No hay Location ni token en encabezados o URL. El secreto se entrega en el JSON de esta emisión, sin replay.
+
+| HTTP | Código | Condición |
+| --- | --- | --- |
+| 400 | INVALID_CREDENTIAL_INPUT | UUID, query o cuerpo inválidos |
+| 401 | UNAUTHORIZED | Autenticación ausente/inválida; WWW-Authenticate: Bearer |
+| 403 | FORBIDDEN | Falta rol global o usuario local deshabilitado |
+| 404 | EVENT_NOT_FOUND | Usuario desconocido, evento inexistente o sin asignación organizer |
+| 404 | REGISTRATION_NOT_FOUND | Inscripción inexistente o de otro evento autorizado |
+| 409 | CREDENTIAL_ISSUANCE_NOT_ALLOWED | Evento o inscripción en estado no elegible |
+| 409 | REGISTRATION_CREDENTIAL_EXISTS | Credencial existente en cualquier estado |
+| 413 | PAYLOAD_TOO_LARGE | Defensa del parser de tamaño |
+| 415 | UNSUPPORTED_MEDIA_TYPE | Content-Type no admitido o error de tipo del parser |
+| 500 | INTERNAL_SERVER_ERROR | Fallo inesperado, sin excepción original |
+
+La visibilidad del evento se comprueba antes de revelar datos de inscripción. Dos peticiones concurrentes autorizadas a la misma inscripción producen una respuesta 201 y otra 409; no se sobrescribe la credencial. Los conflictos de estado se evalúan antes de comprobar la credencial existente, siguiendo #63.
+
+### Privacidad y límites
+
+Todas las respuestas del POST reconocido usan Cache-Control: no-store, incluidas 401, 403 y errores de parser/entrada. No-store no borra datos ya recibidos ni evita que un consumidor conserve el token. No se añade una garantía para rutas inexistentes, métodos no registrados ni peticiones malformadas rechazadas antes del enrutador. GET/HEAD no emiten; OPTIONS conserva el preflight de CORS existente.
+
+buildApp mantiene desactivados los logs automáticos de solicitudes. El adaptador registra solo un código fijo ante fallo inesperado; no registra Bearer, cuerpo, respuesta, hash, token ni excepción original. Las pruebas capturan logs reales habilitados en éxito y error. Proxies, observabilidad externa y futuros consumidores deben evitar registrar cuerpos y credenciales; el servidor no controla esas copias.
+
+Una respuesta perdida tras commit puede dejar una credencial persistida cuyo token no se recibió. Repetir devuelve conflicto, no recupera el token. No se implementan idempotencia de respuesta, reemisión ni reintentos automáticos. El contrato no cambia los límites transaccionales de #63 ni completa la historia de QR/check-in.
