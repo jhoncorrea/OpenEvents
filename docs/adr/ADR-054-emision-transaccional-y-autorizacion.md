@@ -1,6 +1,6 @@
 # ADR-054: Emisión transaccional y autorización
 
-Estado: propuesto en issue #63; pendiente de integración.
+Estado: aceptado e integrado mediante PR #64 (merge 30aad88).
 
 ## Contexto
 
