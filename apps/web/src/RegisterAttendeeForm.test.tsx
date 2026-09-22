@@ -83,7 +83,7 @@ describe("RegisterAttendeeForm", () => {
     await screen.findByRole("alert");
     expect(field("Nombre completo").value).toBe(" Ana Pérez ");
     expect(field("Correo electrónico").closest("fieldset")?.disabled).toBe(false);
-    expect(document.activeElement).toBe(screen.getByRole("alert"));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("alert")));
     fireEvent.change(field("Correo electrónico"), { target: { value: "ana@example.com" } }); send();
     await screen.findByText("Asistente registrado correctamente."); expect(props.onRegister).toHaveBeenCalledTimes(2);
   });

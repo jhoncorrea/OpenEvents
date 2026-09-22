@@ -162,7 +162,7 @@ El esquema se administrará mediante Drizzle ORM, Drizzle Kit y migraciones SQL 
 - La unicidad de `registration_id` se aplica a todos los estados, no solamente a `active`.
 - Con este esquema no se conservan varias filas históricas de credenciales para una misma inscripción.
 - Si se requiere ese historial, deberá revisarse explícitamente el modelo y añadirse una migración.
-- La generación, el hash y la validación del token se implementarán en las historias de QR.
+- La generación y persistencia del hash se implementan internamente en #63; la validación del token y la representación QR permanecen pendientes.
 
 ### Auditoría
 
@@ -226,3 +226,9 @@ El registro se inserta en la misma transacción que perfiles e inscripciones. No
 No hay TTL, caducidad ni purga automática. Se conserva el comprobante con el historial y no se reciclan claves. Una futura política de borrado deberá considerar datos personales duplicados en el snapshot y las FK restrict; eliminar solo el comprobante altera la garantía de replay. El hash no convierte el snapshot en anónimo ni reemplaza los permisos. No se almacena el CSV original.
 
 El mantenedor aplicó la migración y repitió db:migrate sin errores. Las nuevas pruebas aplican la cadena real de migraciones en un esquema temporal aislado y lo eliminan al terminar. La prueba de concurrencia y los límites de recuperación se detallan en el contrato CSV.
+
+## Emisión de credenciales opacas (#63)
+
+La operación interna usa el esquema existente de qr_credential, sin migración. Inserta registration_id, token_hash y status active; PostgreSQL genera id e issued_at y revoked_at permanece NULL. token_hash es SHA-256 hexadecimal del token completo oe1_ seguido de 32 bytes aleatorios codificados en base64url sin relleno. No se almacena el token en claro, ni se alteran inscripción, asistente o versión del evento.
+
+UNIQUE(registration_id) sigue cubriendo todos los estados: active, revoked y expired. UNIQUE(token_hash) impide reutilizar hashes; una colisión provoca fallo sin reintento ni reemplazo. No hay historial de múltiples credenciales, TTL automático ni recuperación del secreto desde la base. Generación y persistencia ya están implementadas internamente; renderización QR y transporte permanecen pendientes. Véase [el contrato de emisión](registration-credentials.md).

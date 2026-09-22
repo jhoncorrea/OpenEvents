@@ -1,6 +1,6 @@
 # ADR-050: Selección web de eventos del operador
 
-Estado: propuesto en issue #61; pendiente de integración.
+Estado: aceptado e integrado mediante PR #62 (merge 8320362).
 
 ## Contexto
 

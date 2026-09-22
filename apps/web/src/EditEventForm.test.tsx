@@ -80,6 +80,11 @@ describe("EditEventForm", () => {
     expect(field("Nombre del evento").value).toBe("Mi cambio"); expect(props.onSave).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("checkbox", { name: "Conservar mi cambio: Nombre del evento" }).hasAttribute("checked")).toBe(false);
     fireEvent.click(screen.getByRole("checkbox", { name: "Conservar mi cambio: Nombre del evento" }));
+    expect((screen.getByRole("checkbox", { name: "Conservar mi cambio: Nombre del evento" }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Conservar mi cambio: Nombre del evento" }));
+    expect((screen.getByRole("checkbox", { name: "Conservar mi cambio: Nombre del evento" }) as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Conservar mi cambio: Nombre del evento" }));
+    expect((screen.getByRole("checkbox", { name: "Conservar mi cambio: Nombre del evento" }) as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByText("Continuar con la selección"));
     expect(field("Ubicación").value).toBe("Cusco"); expect(field("Nombre del evento").value).toBe("Mi cambio");
     expect(props.onSave).toHaveBeenCalledTimes(1); save();
