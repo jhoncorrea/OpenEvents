@@ -1,6 +1,6 @@
 # ADR-048: Proyeccion operativa de eventos
 
-Estado: propuesto en issue #59; pendiente de integración.
+Estado: aceptado e integrado mediante PR #60 (merge 823c1de).
 
 ## Contexto
 

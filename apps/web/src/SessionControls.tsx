@@ -49,6 +49,9 @@ const MyEvents = lazy(() => import("./MyEvents").catch(() => ({
     </section>;
   },
 })));
+const OperatorEvents = lazy(() => import("./OperatorEvents").catch(() => ({
+  default: function OperatorLoadError() { return <section role="alert"><p>No pudimos cargar los eventos asignados. Recarga la página.</p></section>; },
+})));
 interface AccountControlsProps {
   instance: IPublicClientApplication;
   account: AccountInfo | null;
@@ -107,6 +110,7 @@ function AccountControls({
   const busy =
     pending !== null || inProgress !== InteractionStatus.None;
 
+  const canOperate = identity?.roles.includes("checkin_operator") === true;
   const canCreate = identity?.roles.includes("organizer") === true;
 
   function isCurrentAccount(): boolean {
@@ -224,6 +228,29 @@ function AccountControls({
       operationLock.current = false;
       setPending(null);
     }
+  }
+
+  function operatorOptions(signal: AbortSignal) {
+    if (signal.aborted || !isCurrentAccount()) throw new EventQueryError("cancelled");
+    if (!account || !canOperate || busy || operationLock.current) throw new EventQueryError("unauthorized");
+    let config;
+    try { config = parseAuthConfig(import.meta.env); } catch { throw new EventQueryError("configuration"); }
+    return { instance, account, apiScope: config.apiScope, apiUrl: import.meta.env.VITE_API_URL ?? "", signal, isCurrent: isCurrentAccount };
+  }
+  async function operatorPage(cursor: string | undefined, signal: AbortSignal) {
+    const options = operatorOptions(signal);
+    const { listOperatorEvents } = await import("./api-operator-events");
+    return listOperatorEvents({ ...options, cursor });
+  }
+  async function operatorDetail(eventId: string, signal: AbortSignal) {
+    const options = operatorOptions(signal);
+    const { getOperatorEvent } = await import("./api-operator-events");
+    return getOperatorEvent({ ...options, eventId });
+  }
+  async function operatorSearch(eventId: string, q: string, cursor: string | undefined, signal: AbortSignal) {
+    const options = operatorOptions(signal);
+    const { searchApiRegistrations } = await import("./api-registration-queries");
+    return searchApiRegistrations({ ...options, eventId, q, cursor });
   }
 
   async function queryEvents(cursor: string | undefined, signal: AbortSignal) {
@@ -490,6 +517,13 @@ function AccountControls({
         {error && <p role="alert">{error}</p>}
       </section>
 
+      {account && canOperate && !busy && (
+        <Suspense fallback={<p role="status">Cargando eventos asignados…</p>}>
+          <OperatorEvents accountKey={accountKey(account)} enabled={canOperate && !busy}
+            loadPage={operatorPage} loadDetail={operatorDetail} searchPage={operatorSearch}
+            onAccessInvalidated={() => { if (isCurrentAccount()) invalidateAccess(); }} />
+        </Suspense>
+      )}
       {account && canCreate && !busy && (
         <Suspense fallback={<p role="status">Cargando Mis eventos…</p>}>
           <MyEvents

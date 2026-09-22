@@ -30,6 +30,8 @@ import { RegistrationError } from "./registration-error";
 import { importApiRegistrationCsv, queryApiRegistrationCsv, type CsvLookup } from "./api-registration-csv";
 import * as csvRecovery from "./csv-import-recovery";
 import { CsvImportError } from "./csv-import-error";
+import { listOperatorEvents, getOperatorEvent } from "./api-operator-events";
+vi.mock("./api-operator-events", () => ({ listOperatorEvents: vi.fn(), getOperatorEvent: vi.fn() }));
 import SessionControls from "./SessionControls";
 import { fetchApiIdentity } from "./api-auth";
 import { listApiEvents, getApiEvent, EventQueryError, type ApiEventPage } from "./api-event-queries";
@@ -849,5 +851,44 @@ describe("SessionControls registration queries", () => {
     await screen.findByText(/El evento o la inscripción ya no están disponibles/);
     expect(screen.getByText("Acceso a la API verificado.")).toBeTruthy();
     expect(screen.queryByText("consulta@example.com")).toBeNull();
+  });
+});
+
+
+describe("SessionControls operator integration", () => {
+  const assigned = { id: "a4444444-4444-4444-8444-444444444444", name: "Asignado", startsAt: "2027-08-27T14:00:00.000Z", endsAt: "2027-08-27T22:00:00.000Z", timezone: "America/Lima", location: "Lima", status: "active" as const };
+  beforeEach(() => {
+    vi.mocked(fetchApiIdentity).mockResolvedValue({ ...identity, roles: ["checkin_operator"] });
+    vi.mocked(listOperatorEvents).mockResolvedValue({ items: [assigned], nextCursor: null });
+    vi.mocked(getOperatorEvent).mockResolvedValue(assigned);
+    vi.mocked(searchApiRegistrations).mockResolvedValue({ items: [], nextCursor: null });
+  });
+  async function open() {
+    checkAccess(); fireEvent.click(await screen.findByText("Cargar eventos asignados"));
+    fireEvent.click(await screen.findByText("Seleccionar Asignado")); await screen.findByLabelText("Nombre o correo del inscrito");
+  }
+  it("uses the verified account for both operator reads and the shared search", async () => {
+    const view = setup(); expect(screen.queryByText("Cargar eventos asignados")).toBeNull(); await open();
+    fireEvent.change(screen.getByLabelText("Nombre o correo del inscrito"), { target: { value: "Ana" } }); fireEvent.click(screen.getByText("Buscar inscripciones"));
+    await screen.findByText("No se encontraron coincidencias.");
+    const base = expect.objectContaining({ account, instance: view.instance, apiUrl: "http://localhost:3001", apiScope: expect.stringContaining("access_as_user"), signal: expect.any(AbortSignal), isCurrent: expect.any(Function) });
+    expect(listOperatorEvents).toHaveBeenCalledWith(base); expect(getOperatorEvent).toHaveBeenCalledWith(expect.objectContaining({ eventId: assigned.id }));
+    expect(searchApiRegistrations).toHaveBeenCalledWith(expect.objectContaining({ account, eventId: assigned.id, q: "Ana", cursor: undefined }));
+    expect(listApiRegistrations).not.toHaveBeenCalled(); expect(getApiRegistration).not.toHaveBeenCalled(); expect(listApiEvents).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Crear evento" })).toBeNull();
+  });
+  it.each([["organizer"], ["admin"]])("does not show operator controls for %j", async role => {
+    vi.mocked(fetchApiIdentity).mockResolvedValue({ ...identity, roles: [role] }); setup(); checkAccess(); await screen.findByText("Acceso a la API verificado."); expect(screen.queryByText("Cargar eventos asignados")).toBeNull();
+  });
+  it("keeps both role surfaces for a dual-role account", async () => {
+    vi.mocked(fetchApiIdentity).mockResolvedValue({ ...identity, roles: ["organizer", "checkin_operator"] }); setup(); checkAccess(); await screen.findByText("Cargar eventos asignados"); expect(screen.getByRole("button", { name: "Crear evento" })).toBeTruthy();
+  });
+  it.each(["logout", "account", "interaction"])("aborts pending operator data on %s", async action => {
+    const pending = deferred<Awaited<ReturnType<typeof listOperatorEvents>>>(); vi.mocked(listOperatorEvents).mockReturnValue(pending.promise); const view = setup(); checkAccess(); fireEvent.click(await screen.findByText("Cargar eventos asignados")); await waitFor(() => expect(listOperatorEvents).toHaveBeenCalled());
+    const signal = vi.mocked(listOperatorEvents).mock.calls[0][0].signal!;
+    if (action === "logout") fireEvent.click(screen.getByText("Cerrar sesión"));
+    if (action === "account") view.switchAccount({ ...account, homeAccountId: "different" });
+    if (action === "interaction") view.setProgress(InteractionStatus.AcquireToken);
+    expect(signal.aborted).toBe(true); await act(async () => pending.resolve({ items: [assigned], nextCursor: null })); expect(screen.queryByText("Seleccionar Asignado")).toBeNull();
   });
 });
