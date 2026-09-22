@@ -1,0 +1,6 @@
+.operator-events { margin-block: 1.5rem; padding: 1.25rem; border: 1px solid #cbdcd4; border-radius: 1rem; overflow-wrap: anywhere; }
+.operator-events ul { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.operator-events li { padding: 1rem; border: 1px solid #cbdcd4; border-radius: .75rem; }
+.operator-events button { margin: .35rem .5rem .35rem 0; }
+.operator-events input { display: block; width: 100%; box-sizing: border-box; padding: .8rem; border: 1px solid #627e73; border-radius: .4rem; }
+.operator-events [role="alert"] { color: #9e2424; }
