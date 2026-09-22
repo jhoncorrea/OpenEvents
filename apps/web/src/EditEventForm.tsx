@@ -170,7 +170,10 @@ function Editor({ event, onSave, loadLatest, onSaved, onCancel, onAccessInvalida
           <div className="event-edit-table"><table><caption>Versión consultada: {latest.version}</caption>
             <thead><tr><th scope="col">Campo</th><th scope="col">Antes</th><th scope="col">Tu propuesta</th><th scope="col">Actual</th><th scope="col">Conservar</th></tr></thead>
             <tbody>{editFields.map(field => <tr key={field}><th scope="row">{editLabels[field]}</th><td>{base[field]}</td><td>{recovery[field] ?? base[field]}</td><td>{latest[field]}</td><td>
-              {recovery[field] !== undefined ? <input type="checkbox" aria-label={`Conservar mi cambio: ${editLabels[field]}`} checked={keep.includes(field)} onChange={e => setKeep(previous => e.target.checked ? [...previous, field] : previous.filter(item => item !== field))} /> : "Sin cambio"}
+              {recovery[field] !== undefined ? <input type="checkbox" aria-label={`Conservar mi cambio: ${editLabels[field]}`} checked={keep.includes(field)} onChange={e => {
+                const checked = e.currentTarget.checked;
+                setKeep(previous => checked ? [...previous, field] : previous.filter(item => item !== field));
+              }} /> : "Sin cambio"}
             </td></tr>)}</tbody>
           </table></div>
           <button type="button" onClick={review}>Continuar con la selección</button>
