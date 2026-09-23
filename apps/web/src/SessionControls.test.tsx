@@ -24,6 +24,9 @@ import {
   vi,
 } from "vitest";
 import { registerApiAttendee, type ApiRegistration } from "./api-registrations";
+import { issueApiRegistrationCredential, type IssuedCredential } from "./api-registration-credentials";
+import { CredentialError } from "./credential-error";
+vi.mock("./api-registration-credentials", async original => ({ ...await original<typeof import("./api-registration-credentials")>(), issueApiRegistrationCredential: vi.fn() }));
 import { listApiRegistrations, getApiRegistration, searchApiRegistrations, type RegistrationPage } from "./api-registration-queries";
 import { RegistrationQueryError } from "./registration-query-error";
 import { RegistrationError } from "./registration-error";
@@ -890,5 +893,56 @@ describe("SessionControls operator integration", () => {
     if (action === "account") view.switchAccount({ ...account, homeAccountId: "different" });
     if (action === "interaction") view.setProgress(InteractionStatus.AcquireToken);
     expect(signal.aborted).toBe(true); await act(async () => pending.resolve({ items: [assigned], nextCursor: null })); expect(screen.queryByText("Seleccionar Asignado")).toBeNull();
+  });
+});
+
+
+describe("SessionControls credential integration", () => {
+  const registration: ApiRegistration = { id: "b4444444-4444-4444-8444-444444444444", eventId: queriedEvent.id,
+    status: "confirmed", source: "manual", createdAt: "2026-09-22T23:00:00.000Z", attendee: { id: queriedEvent.id, fullName: "Persona credencial", email: "credential@example.invalid" } };
+  const issued: IssuedCredential = { id: queriedEvent.id, eventId: queriedEvent.id, registrationId: registration.id, status: "active", issuedAt: registration.createdAt, token: "oe1_" + "A".repeat(43) };
+  beforeEach(() => {
+    vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });
+    vi.mocked(getApiEvent).mockResolvedValue(queriedEvent);
+    vi.mocked(listApiRegistrations).mockResolvedValue({ items: [registration], nextCursor: null });
+    vi.mocked(getApiRegistration).mockResolvedValue(registration);
+    vi.mocked(issueApiRegistrationCredential).mockResolvedValue(issued);
+  });
+  async function openCredential() {
+    checkAccess(); fireEvent.click(await screen.findByText("Cargar eventos"));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver detalle de Evento consultado" }));
+    fireEvent.click(await screen.findByText("Ver inscripciones")); fireEvent.click(await screen.findByText("Cargar inscripciones"));
+    fireEvent.click(await screen.findByText("Ver inscripción")); await screen.findByText("Emitir credencial");
+    fireEvent.click(screen.getByText("Emitir credencial"));
+  }
+  it("uses the verified identity, scope and registration; prevents access recheck while secret is visible", async () => {
+    const view = setup(); await openCredential(); await screen.findByLabelText("Código de credencial");
+    expect(issueApiRegistrationCredential).toHaveBeenCalledExactlyOnceWith({ instance: view.instance, account,
+      apiScope: "api://44444444-4444-4444-8444-444444444444/access_as_user", apiUrl: "http://localhost:3001",
+      eventId: queriedEvent.id, registrationId: registration.id, signal: expect.any(AbortSignal), isCurrent: expect.any(Function) });
+    expect((screen.getByText("Comprobar acceso") as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("warns before logout, permits staying, and clears the secret on confirmed logout", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false); const view = setup(); await openCredential(); await screen.findByLabelText("Código de credencial");
+    fireEvent.click(screen.getByText("Cerrar sesión")); expect(view.logoutRedirect).not.toHaveBeenCalled(); expect(screen.getByLabelText("Código de credencial")).toBeTruthy();
+    confirm.mockReturnValue(true); fireEvent.click(screen.getByText("Cerrar sesión"));
+    await waitFor(() => expect(view.logoutRedirect).toHaveBeenCalledTimes(1)); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
+  });
+  it.each(["account", "interaction"])("discards pending issuance on %s change without voluntary confirmation", async mode => {
+    const request = deferred<IssuedCredential>(); vi.mocked(issueApiRegistrationCredential).mockReturnValue(request.promise);
+    const confirm = vi.spyOn(window, "confirm"); const view = setup(); await openCredential(); await waitFor(() => expect(issueApiRegistrationCredential).toHaveBeenCalledTimes(1));
+    const options = vi.mocked(issueApiRegistrationCredential).mock.calls[0][0];
+    if (mode === "account") view.switchAccount({ ...account, homeAccountId: "other" }); else view.setProgress(InteractionStatus.AcquireToken);
+    expect(options.signal?.aborted).toBe(true); expect(confirm).not.toHaveBeenCalled();
+    await act(async () => request.resolve(issued)); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
+  });
+  it.each(["unauthorized", "forbidden"] as const)("invalidates session after credential %s", async kind => {
+    vi.mocked(issueApiRegistrationCredential).mockRejectedValue(new CredentialError(kind)); setup(); await openCredential();
+    await screen.findByText(/Vuelve a comprobar el acceso antes de continuar/); expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull();
+  });
+  it("does not expose the organizer issuance flow to an operator", async () => {
+    vi.mocked(fetchApiIdentity).mockResolvedValue({ tenantId: account.tenantId, objectId: "object", subject: "operator", roles: ["checkin_operator"] });
+    setup(); checkAccess(); await screen.findByText("Acceso a la API verificado.");
+    expect(screen.queryByText("Emitir credencial")).toBeNull(); expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull(); expect(issueApiRegistrationCredential).not.toHaveBeenCalled();
   });
 });

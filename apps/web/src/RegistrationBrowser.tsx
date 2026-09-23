@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import RegistrationCredential, { type IssueCredential } from "./RegistrationCredential";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { normalizeRegistrationSearch, RegistrationQueryError, type QueriedRegistration, type RegistrationPage } from "./api-registration-queries";
 import type { ApiEvent } from "./api-event-queries";
 import "./registration-browser.css";
@@ -6,7 +7,9 @@ import "./registration-browser.css";
 export interface RegistrationBrowserProps {
   accountKey: string;
   enabled: boolean;
-  event: Pick<ApiEvent, "id" | "name" | "timezone">;
+  event: Pick<ApiEvent, "id" | "name" | "timezone"> & Partial<Pick<ApiEvent, "status">>;
+  issueCredential?: IssueCredential;
+  onCredentialSensitiveChange?: (value: boolean) => void;
   loadPage: (eventId: string, cursor: string | undefined, signal: AbortSignal) => Promise<RegistrationPage>;
   searchPage?: (eventId: string, q: string, cursor: string | undefined, signal: AbortSignal) => Promise<RegistrationPage>;
   loadDetail: (eventId: string, registrationId: string, signal: AbortSignal) => Promise<QueriedRegistration>;
@@ -20,7 +23,14 @@ export default function RegistrationBrowser(props: RegistrationBrowserProps) {
   return props.enabled ? <Browser key={JSON.stringify([props.accountKey, props.event.id])} {...props} /> : null;
 }
 
-function Browser({ event, loadPage, searchPage, loadDetail, onBack, onAccessInvalidated, onUnavailable }: RegistrationBrowserProps) {
+function Browser({ issueCredential, onCredentialSensitiveChange, event, loadPage, searchPage, loadDetail, onBack, onAccessInvalidated, onUnavailable }: RegistrationBrowserProps) {
+  const credentialSensitive = useRef(false);
+  const credentialProtection = useCallback((value: boolean) => {
+    credentialSensitive.current = value; onCredentialSensitiveChange?.(value);
+  }, [onCredentialSensitiveChange]);
+  function canLeave() {
+    return !credentialSensitive.current || window.confirm("¿Salir del detalle? Podrías perder el código o el resultado de una emisión pendiente. No podrá recuperarse desde esta vista.");
+  }
   const [draft, setDraft] = useState("");
   const [executed, setExecuted] = useState<string | null>(null);
   const activeTerm = useRef<string | null>(null);
@@ -118,6 +128,7 @@ function Browser({ event, loadPage, searchPage, loadDetail, onBack, onAccessInva
     finally { if (request.current()) { active.current = null; setBusy(false); } }
   }
   function backToList() {
+    if (!canLeave()) return;
     cancel(); restoreFocus.current = true; setSelected(null); setDetail(null); setError(null);
   }
   function createdAt(value: string) {
@@ -128,7 +139,7 @@ function Browser({ event, loadPage, searchPage, loadDetail, onBack, onAccessInva
   return <section className="registration-browser" aria-label={`Inscripciones de ${event.name}`}>
     <header>
       <h3 ref={heading} tabIndex={-1}>{selected ? "Detalle de inscripción" : "Inscripciones"}</h3>
-      <button type="button" onClick={() => { cancel(); onBack(); }}>Volver al evento</button>
+      <button type="button" onClick={() => { if (canLeave()) { cancel(); onBack(); } }}>Volver al evento</button>
     </header>
     <p><strong>Evento:</strong> {event.name}</p>
     {busy && <p role="status">{selected ? "Cargando inscripción…" : "Cargando inscripciones…"}</p>}
@@ -175,6 +186,16 @@ function Browser({ event, loadPage, searchPage, loadDetail, onBack, onAccessInva
         <dt>Fecha de inscripción</dt><dd>{createdAt(detail.createdAt)} ({event.timezone})</dd>
         <dt>Identificador</dt><dd>{detail.id}</dd>
       </dl>}
+      {detail && issueCredential && detail.status === "confirmed" && (event.status === "draft" || event.status === "active") &&
+        <RegistrationCredential key={JSON.stringify([event.id, detail.id, event.status, detail.status])}
+          eventId={event.id} registrationId={detail.id} issue={issueCredential} onSensitiveChange={credentialProtection}
+          onAccessInvalidated={() => failed(new RegistrationQueryError("unauthorized"))}
+          onEventUnavailable={() => failed(new RegistrationQueryError("not_found"))}
+          onRegistrationUnavailable={() => {
+            cancel(); const id = detail.id; setDetail(null); setSelected(null);
+            setItems(previous => previous.filter(item => item.id !== id));
+            setError("La inscripción ya no está disponible. Actualiza el listado.");
+          }} />}
     </>}
   </section>;
 }

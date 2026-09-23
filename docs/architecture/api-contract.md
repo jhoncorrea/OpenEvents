@@ -670,3 +670,11 @@ Todas las respuestas del POST reconocido usan Cache-Control: no-store, incluidas
 buildApp mantiene desactivados los logs automáticos de solicitudes. El adaptador registra solo un código fijo ante fallo inesperado; no registra Bearer, cuerpo, respuesta, hash, token ni excepción original. Las pruebas capturan logs reales habilitados en éxito y error. Proxies, observabilidad externa y futuros consumidores deben evitar registrar cuerpos y credenciales; el servidor no controla esas copias.
 
 Una respuesta perdida tras commit puede dejar una credencial persistida cuyo token no se recibió. Repetir devuelve conflicto, no recupera el token. No se implementan idempotencia de respuesta, reemisión ni reintentos automáticos. El contrato no cambia los límites transaccionales de #63 ni completa la historia de QR/check-in.
+
+## Cliente web de emisión (#67)
+
+issueApiRegistrationCredential consume el POST de #65 sin modificar su contrato. Valida URL HTTPS (HTTP solo localhost), ausencia de credenciales/query/fragmento en la URL base, scope no vacío y UUID antes de adquirir token. Usa la cuenta seleccionada, Bearer, Accept: application/json, cache no-store, credentials omit y redirect error, sin body ni Content-Type. Tiempo de espera de red: 15 segundos. No hay reintentos ni login automático durante la emisión.
+
+La respuesta 201 exige exactamente los campos previstos: UUID de credencial, eventId/registrationId coincidentes con los solicitados, status active, issuedAt canónico UTC con milisegundos y token oe1_ con base64url canónico de 32 bytes. Campos adicionales, fecha inválida, token inválido o JSON ilegible se descartan como resultado incierto sin exponer su contenido. La vista comprueba nuevamente el resultado antes de mostrarlo.
+
+401/403 invalidan acceso; 404 se distingue por EVENT_NOT_FOUND o REGISTRATION_NOT_FOUND; 409 distingue credencial existente y estado no elegible. 400/413/415 se traducen a entrada inválida. Códigos desconocidos, 5xx, redirecciones, fallo de red, timeout y respuestas inválidas se consideran inciertos: no se afirma ausencia de escritura. Cancelación antes del envío se distingue de cancelación tras iniciar POST; la segunda tampoco implica rollback. Se comprueba vigencia antes/después de adquirir token y después de red y lectura de JSON.

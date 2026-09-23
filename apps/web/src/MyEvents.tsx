@@ -38,6 +38,8 @@ interface Props {
   loadDetail: (id: string, signal: AbortSignal) => Promise<ApiEvent>;
   saveEvent: (id: string, input: EditEventPayload, signal: AbortSignal) => Promise<ApiEvent>;
   registerAttendee?: (id: string, input: RegistrationPayload, signal: AbortSignal) => Promise<ApiRegistration>;
+  issueCredential?: RegistrationBrowserProps["issueCredential"];
+  onCredentialSensitiveChange?: (value: boolean) => void;
   searchRegistrations?: RegistrationBrowserProps["searchPage"];
   loadRegistrations?: RegistrationBrowserProps["loadPage"];
   loadRegistrationDetail?: RegistrationBrowserProps["loadDetail"];
@@ -61,7 +63,7 @@ export default function MyEvents(props: Props) {
   return props.enabled ? <EventBrowser key={props.accountKey} {...props} /> : null;
 }
 
-function EventBrowser({ searchRegistrations, sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
+function EventBrowser({ issueCredential, onCredentialSensitiveChange, searchRegistrations, sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
   const [items, setItems] = useState<ApiEvent[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -220,7 +222,7 @@ function EventBrowser({ searchRegistrations, sendCsv, lookupCsv, accountKey, loa
         setItems(previous => previous.filter(item => item.id !== id)); setNotice("El evento ya no está disponible para tu cuenta."); }}
     />}
     {browsingRegistrations && loadRegistrations && loadRegistrationDetail && !blocked && <Suspense fallback={<p role="status">Cargando inscripciones…</p>}>
-      <RegistrationBrowser accountKey={accountKey} enabled={!blocked} event={browsingRegistrations}
+      <RegistrationBrowser issueCredential={issueCredential} onCredentialSensitiveChange={onCredentialSensitiveChange} accountKey={accountKey} enabled={!blocked} event={browsingRegistrations}
         loadPage={loadRegistrations} searchPage={searchRegistrations} loadDetail={loadRegistrationDetail}
         onBack={() => { const id = browsingRegistrations.id; setBrowsingRegistrations(null); setDetail(null); void open(id); }}
         onAccessInvalidated={() => failed(new EventQueryError("unauthorized"))}
