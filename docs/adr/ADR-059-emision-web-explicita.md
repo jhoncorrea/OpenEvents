@@ -1,6 +1,6 @@
 # ADR-059: Emisión web explícita
 
-Estado: propuesto en issue #67; pendiente de integración.
+Estado: aceptado e integrado mediante PR #68 (merge e9c2f85).
 
 ## Contexto
 

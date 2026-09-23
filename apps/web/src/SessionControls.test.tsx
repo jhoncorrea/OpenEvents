@@ -925,8 +925,10 @@ describe("SessionControls credential integration", () => {
   it("warns before logout, permits staying, and clears the secret on confirmed logout", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false); const view = setup(); await openCredential(); await screen.findByLabelText("Código de credencial");
     fireEvent.click(screen.getByText("Cerrar sesión")); expect(view.logoutRedirect).not.toHaveBeenCalled(); expect(screen.getByLabelText("Código de credencial")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "QR de la credencial de inscripción" })).toBeTruthy();
     confirm.mockReturnValue(true); fireEvent.click(screen.getByText("Cerrar sesión"));
     await waitFor(() => expect(view.logoutRedirect).toHaveBeenCalledTimes(1)); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
+    expect(screen.queryByRole("img", { name: "QR de la credencial de inscripción" })).toBeNull();
   });
   it.each(["account", "interaction"])("discards pending issuance on %s change without voluntary confirmation", async mode => {
     const request = deferred<IssuedCredential>(); vi.mocked(issueApiRegistrationCredential).mockReturnValue(request.promise);
@@ -935,6 +937,7 @@ describe("SessionControls credential integration", () => {
     if (mode === "account") view.switchAccount({ ...account, homeAccountId: "other" }); else view.setProgress(InteractionStatus.AcquireToken);
     expect(options.signal?.aborted).toBe(true); expect(confirm).not.toHaveBeenCalled();
     await act(async () => request.resolve(issued)); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
+    expect(screen.queryByRole("img", { name: "QR de la credencial de inscripción" })).toBeNull();
   });
   it.each(["unauthorized", "forbidden"] as const)("invalidates session after credential %s", async kind => {
     vi.mocked(issueApiRegistrationCredential).mockRejectedValue(new CredentialError(kind)); setup(); await openCredential();
