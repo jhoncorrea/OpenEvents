@@ -1,6 +1,6 @@
 # ADR-056: Transporte HTTP de credenciales
 
-Estado: propuesto en issue #65; pendiente de integración.
+Estado: aceptado e integrado mediante PR #66 (merge 2f73568).
 
 ## Contexto
 

@@ -16,3 +16,6 @@
 .registration-browser form { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-block: 1rem; }
 .registration-browser form input { min-width: 0; max-width: 100%; padding: .75rem; font: inherit; }
 .registration-browser form p { flex-basis: 100%; margin: 0; }
+
+.registration-credential { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #b6ccc0; }
+.registration-credential textarea { display: block; width: 100%; min-height: 5rem; font-family: monospace; overflow-wrap: anywhere; }

@@ -426,3 +426,9 @@ El usuario, la asignación y el evento se leen con bloqueos SHARE; la inscripci�
 ## Transporte de emisión (#65)
 
 La ruta POST de credenciales exige organizer global desde onRequest; el actor procede exclusivamente del verificador de acceso. Admin y checkin_operator sin organizer reciben 403. Si hay varios roles globales, la asignación local organizer sigue siendo obligatoria. El guard añade no-store antes de autenticar; el manejador de errores también lo aplica. Los códigos 401/403/404 mantienen el aislamiento del evento y la inscripción. No cambia la verificación de Entra, el provisionamiento ni el acceso de otras rutas. Pruebas HTTP con verificador simulado; integración con operación y PostgreSQL reales.
+
+## Emisión desde la sesión web (#67)
+
+Solo el recorrido organizer recibe el callback de emisión. El recorrido operator no expone esa acción; admin sin organizer tampoco obtiene Mis eventos. La sesión transmite cuenta, scope y función de vigencia al cliente; cambiar cuenta o perder acceso desmonta los datos protegidos. No se altera la autorización del servidor.
+
+Una emisión pendiente o un código visible protege la navegación voluntaria y el cierre de sesión mediante confirmación, y deshabilita acciones de sesión/creación que compiten con la vista mediante el control de edición existente. Pérdida de permisos o cambio de cuenta retira el secreto inmediatamente sin confirmación. Cancelar una petición no cancela necesariamente una escritura ya realizada en la API.

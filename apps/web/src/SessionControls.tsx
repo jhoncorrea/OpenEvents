@@ -1,5 +1,6 @@
+import { CredentialError } from "./credential-error";
 import { CsvImportError } from "./csv-import-error";
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import {
   InteractionStatus,
   type AccountInfo,
@@ -126,7 +127,12 @@ function AccountControls({
     );
   }
 
+  const credentialSensitive = useRef(false);
+  const credentialProtection = useCallback((value: boolean) => {
+    credentialSensitive.current = value; setEditingOpen(value);
+  }, []);
   function invalidateAccess() {
+    credentialSensitive.current = false;
     setIdentity(null);
     setEditingOpen(false);
     setNotice(
@@ -139,6 +145,7 @@ function AccountControls({
       return;
     }
 
+    if (credentialSensitive.current && !window.confirm("¿Cerrar sesión? Podrías perder el código o el resultado de una emisión pendiente; no podrás recuperarlo desde esta vista.")) return;
     operationLock.current = true;
     setPending("session");
     setError(null);
@@ -380,6 +387,18 @@ function AccountControls({
       throw error;
     }
   }
+  async function handleCredential(eventId: string, registrationId: string, signal: AbortSignal) {
+    const current = () => !signal.aborted && isCurrentAccount();
+    if (!current()) throw new CredentialError("cancelled_before_send");
+    if (!account || !canCreate || busy || operationLock.current) throw new CredentialError("unauthorized");
+    let config;
+    try { config = parseAuthConfig(import.meta.env); } catch { throw new CredentialError("configuration"); }
+    let client;
+    try { client = await import("./api-registration-credentials"); } catch { throw new CredentialError("configuration"); }
+    if (!current()) throw new CredentialError("cancelled_before_send");
+    return client.issueApiRegistrationCredential({ instance, account, apiScope: config.apiScope,
+      apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, registrationId, signal, isCurrent: isCurrentAccount });
+  }
   async function handleRegistration(eventId: string, input: RegistrationPayload, signal: AbortSignal) {
     if (signal.aborted) throw new RegistrationError("cancelled");
     if (!account || !isCurrentAccount() || !canCreate || busy || operationLock.current) throw new RegistrationError("unauthorized");
@@ -535,6 +554,8 @@ function AccountControls({
             sendCsv={(id, key, bytes, signal) => csvOperation(id, key, signal, bytes)}
             lookupCsv={(id, key, signal) => csvOperation(id, key, signal)}
             registerAttendee={handleRegistration}
+            issueCredential={handleCredential}
+            onCredentialSensitiveChange={credentialProtection}
             searchRegistrations={searchRegistrations}
             loadRegistrations={queryRegistrations}
             loadRegistrationDetail={queryRegistrationDetail}
