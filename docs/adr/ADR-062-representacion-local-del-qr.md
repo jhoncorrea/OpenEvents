@@ -1,6 +1,6 @@
 # ADR-062: Representación local del QR
 
-Estado: propuesto en issue #69; pendiente de integración.
+Estado: aceptado e integrado mediante PR #70 (merge 72d7190).
 
 ## Contexto
 

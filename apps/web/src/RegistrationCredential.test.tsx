@@ -5,6 +5,7 @@ import RegistrationBrowser from "./RegistrationBrowser";
 import { CredentialError, type CredentialErrorKind } from "./credential-error";
 import type { IssueCredential } from "./RegistrationCredential";
 import * as qr from "./credential-qr";
+import * as pngDownload from "./credential-qr-download";
 const id = "a4444444-4444-4444-8444-444444444444", reg = "b4444444-4444-4444-8444-444444444444";
 const event = { id, name: "Evento", timezone: "America/Lima", status: "active" as const };
 const registration = { id: reg, eventId: id, status: "confirmed" as const, source: "manual", createdAt: "2026-09-22T23:00:00.000Z", attendee: { id, fullName: "Ana", email: "test@example.invalid" } };
@@ -15,6 +16,38 @@ async function open() { fireEvent.click(screen.getByText("Cargar inscripciones")
 function deferred<T>() { let resolve!: (v: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { resolve, promise }; }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe("credential issuance in registration detail", () => {
+  it("retries only PNG generation on download failure and preserves QR, copy and a single issuance", async () => {
+    const file = new Blob(["synthetic"], { type: "image/png" });
+    const encode = vi.spyOn(pngDownload, "createCredentialQrPng").mockRejectedValueOnce(new Error(result.token)).mockResolvedValue(file);
+    const start = vi.spyOn(pngDownload, "startCredentialQrDownload").mockImplementation(() => {});
+    const writeText = vi.fn().mockResolvedValue(undefined); vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const f = setup(); render(<RegistrationBrowser {...f} />); await open(); fireEvent.click(screen.getByText("Emitir credencial"));
+    const button = await screen.findByRole("button", { name: "Descargar QR (PNG)" }); expect(encode).not.toHaveBeenCalled();
+    fireEvent.click(button); await screen.findByText(/No se pudo descargar el QR/); expect(screen.getByRole("img")).toBeTruthy();
+    fireEvent.click(screen.getByText("Copiar código")); await screen.findByText(/Código copiado/); expect(writeText).toHaveBeenCalledWith(result.token);
+    fireEvent.click(button); await screen.findByText(/Descarga solicitada/);
+    expect(f.issueCredential).toHaveBeenCalledTimes(1); expect(encode).toHaveBeenCalledTimes(2); expect(start).toHaveBeenCalledExactlyOnceWith(file);
+  });
+  it.each(["account", "event", "disabled"])("discards a pending PNG on %s change", async mode => {
+    const pending = deferred<Blob>(); vi.spyOn(pngDownload, "createCredentialQrPng").mockReturnValue(pending.promise);
+    const start = vi.spyOn(pngDownload, "startCredentialQrDownload").mockImplementation(() => {});
+    const f = setup(); const view = render(<RegistrationBrowser {...f} />); await open(); fireEvent.click(screen.getByText("Emitir credencial"));
+    fireEvent.click(await screen.findByRole("button", { name: "Descargar QR (PNG)" }));
+    view.rerender(<RegistrationBrowser {...f} accountKey={mode === "account" ? "b" : "a"} event={mode === "event" ? { ...event, id: reg } : event} enabled={mode !== "disabled"} />);
+    await act(async () => pending.resolve(new Blob(["synthetic"], { type: "image/png" })));
+    expect(start).not.toHaveBeenCalled(); expect(screen.queryByRole("img")).toBeNull();
+  });
+  it("retains pending download after cancelling exit but discards it after accepting exit", async () => {
+    const pending = deferred<Blob>(); vi.spyOn(pngDownload, "createCredentialQrPng").mockReturnValue(pending.promise);
+    const start = vi.spyOn(pngDownload, "startCredentialQrDownload").mockImplementation(() => {});
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const f = setup(); render(<RegistrationBrowser {...f} />); await open(); fireEvent.click(screen.getByText("Emitir credencial"));
+    fireEvent.click(await screen.findByRole("button", { name: "Descargar QR (PNG)" }));
+    fireEvent.click(screen.getByText("Volver a inscripciones")); expect(screen.getByRole("img")).toBeTruthy(); expect(screen.getByText("Preparando PNG…")).toBeTruthy();
+    confirm.mockReturnValue(true); fireEvent.click(screen.getByText("Volver a inscripciones"));
+    await act(async () => pending.resolve(new Blob(["synthetic"], { type: "image/png" })));
+    expect(start).not.toHaveBeenCalled(); expect(screen.queryByRole("img")).toBeNull();
+  });
   it("emits only on click and copies explicitly without another emission or storage", async () => {
     const storage = vi.spyOn(Storage.prototype, "setItem"); const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { clipboard: { writeText } }); const f = setup(); render(<RegistrationBrowser {...f} />); await open();
