@@ -19,3 +19,7 @@
 
 .registration-credential { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #b6ccc0; }
 .registration-credential textarea { display: block; width: 100%; min-height: 5rem; font-family: monospace; overflow-wrap: anywhere; }
+
+.registration-credential-qr { margin: 1rem 0; }
+.registration-credential-qr svg { display: block; max-width: 100%; height: auto; }
+.registration-credential-qr figcaption { margin-top: .75rem; line-height: 1.6; overflow-wrap: anywhere; }

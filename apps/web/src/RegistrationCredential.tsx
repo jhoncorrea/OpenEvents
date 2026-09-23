@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { parseIssuedCredential, type IssuedCredential } from "./api-registration-credentials";
 import { CredentialError } from "./credential-error";
+import RegistrationCredentialQr from "./RegistrationCredentialQr";
 export type IssueCredential = (eventId: string, registrationId: string, signal: AbortSignal) => Promise<IssuedCredential>;
 export interface CredentialProps {
   eventId: string; registrationId: string; issue: IssueCredential;
@@ -56,6 +57,7 @@ export default function RegistrationCredential({ eventId, registrationId, issue,
     {message && <p role="alert">{message}</p>}
     {result && <>
       <p role="status">Credencial emitida. Guarda el código antes de salir.</p>
+      <RegistrationCredentialQr token={result.token} />
       <label>Código de credencial<textarea ref={input} readOnly value={result.token} autoComplete="off" spellCheck={false} /></label>
       <p>Identificador: {result.id}</p><p>Emitida: {result.issuedAt} (UTC)</p>
       <button type="button" onClick={() => void copy()}>Copiar código</button>

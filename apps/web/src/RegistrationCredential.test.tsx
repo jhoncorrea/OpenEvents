@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import RegistrationBrowser from "./RegistrationBrowser";
 import { CredentialError, type CredentialErrorKind } from "./credential-error";
 import type { IssueCredential } from "./RegistrationCredential";
+import * as qr from "./credential-qr";
 const id = "a4444444-4444-4444-8444-444444444444", reg = "b4444444-4444-4444-8444-444444444444";
 const event = { id, name: "Evento", timezone: "America/Lima", status: "active" as const };
 const registration = { id: reg, eventId: id, status: "confirmed" as const, source: "manual", createdAt: "2026-09-22T23:00:00.000Z", attendee: { id, fullName: "Ana", email: "test@example.invalid" } };
@@ -19,6 +20,7 @@ describe("credential issuance in registration detail", () => {
     vi.stubGlobal("navigator", { clipboard: { writeText } }); const f = setup(); render(<RegistrationBrowser {...f} />); await open();
     expect(f.issueCredential).not.toHaveBeenCalled(); fireEvent.click(screen.getByText("Emitir credencial"));
     expect(await screen.findByLabelText("Código de credencial")).toBeTruthy(); expect(writeText).not.toHaveBeenCalled();
+    expect(screen.getByRole("img", { name: "QR de la credencial de inscripción" })).toBeTruthy();
     expect(f.issueCredential).toHaveBeenCalledExactlyOnceWith(id, reg, expect.any(AbortSignal));
     fireEvent.click(screen.getByText("Copiar código")); await screen.findByText(/Código copiado/);
     expect(writeText).toHaveBeenCalledExactlyOnceWith(result.token); expect(f.issueCredential).toHaveBeenCalledTimes(1); expect(storage).not.toHaveBeenCalled();
@@ -42,8 +44,10 @@ describe("credential issuance in registration detail", () => {
     const f = setup(); const confirm = vi.spyOn(window, "confirm").mockReturnValue(false); render(<RegistrationBrowser {...f} />); await open();
     fireEvent.click(screen.getByText("Emitir credencial")); await screen.findByLabelText("Código de credencial");
     fireEvent.click(screen.getByText("Volver al evento")); expect(f.onBack).not.toHaveBeenCalled();
+    expect(screen.getByRole("img", { name: "QR de la credencial de inscripción" })).toBeTruthy();
     const unload = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true);
     confirm.mockReturnValue(true); fireEvent.click(screen.getByText("Volver a inscripciones")); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
+    expect(screen.queryByRole("img", { name: "QR de la credencial de inscripción" })).toBeNull();
     expect(screen.getByText("Ver inscripción")).toBeTruthy(); expect(f.onCredentialSensitiveChange).toHaveBeenLastCalledWith(false);
   });
   it.each(["exists", "not_allowed", "uncertain", "validation", "configuration"] as CredentialErrorKind[])("blocks direct repetition after %s", async kind => {
@@ -64,6 +68,7 @@ describe("credential issuance in registration detail", () => {
     await open(); fireEvent.click(screen.getByText("Emitir credencial"));
     view.rerender(<RegistrationBrowser {...f} accountKey={mode === "account" ? "b" : "a"} event={mode === "event" ? { ...event, id: reg } : event} enabled={mode !== "disabled"} />);
     expect(f.issueCredential.mock.calls[0][2].aborted).toBe(true); await act(async () => pending.resolve(result)); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
+    expect(screen.queryByRole("img", { name: "QR de la credencial de inscripción" })).toBeNull();
   });
   it.each(["closed", "cancelled"] as const)("does not offer issuance for event %s", async status => {
     const f = setup(); render(<RegistrationBrowser {...f} event={{ ...event, status }} />);
@@ -77,5 +82,33 @@ describe("credential issuance in registration detail", () => {
   it("never displays an invalid or foreign credential response", async () => {
     const f = setup(); f.issueCredential.mockResolvedValue({ ...result, registrationId: id }); render(<RegistrationBrowser {...f} />); await open(); fireEvent.click(screen.getByText("Emitir credencial"));
     await screen.findByText(/No podemos confirmar el resultado/); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
+  });
+  it("keeps copy and navigation protection when QR generation fails without another issuance", async () => {
+    vi.spyOn(qr, "createCredentialQr").mockImplementation(() => { throw new Error(result.token); });
+    const writeText = vi.fn().mockResolvedValue(undefined); vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const f = setup(); render(<RegistrationBrowser {...f} />); await open(); fireEvent.click(screen.getByText("Emitir credencial"));
+    await screen.findByText(/No se pudo mostrar el QR/); expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByRole("alert").textContent).not.toContain(result.token);
+    fireEvent.click(screen.getByText("Copiar código")); await screen.findByText(/Código copiado/);
+    expect(writeText).toHaveBeenCalledWith(result.token); expect(f.issueCredential).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("Volver a inscripciones")); expect(confirm).toHaveBeenCalled();
+    expect(screen.getByLabelText("Código de credencial")).toBeTruthy();
+  });
+  it.each(["account", "event", "disabled"])("removes a displayed QR immediately on %s change", async mode => {
+    const f = setup(); const view = render(<RegistrationBrowser {...f} />); await open();
+    fireEvent.click(screen.getByText("Emitir credencial")); await screen.findByRole("img", { name: "QR de la credencial de inscripción" });
+    const confirm = vi.spyOn(window, "confirm");
+    view.rerender(<RegistrationBrowser {...f} accountKey={mode === "account" ? "b" : "a"} event={mode === "event" ? { ...event, id: reg } : event} enabled={mode !== "disabled"} />);
+    expect(screen.queryByRole("img", { name: "QR de la credencial de inscripción" })).toBeNull();
+    expect(screen.queryByLabelText("Código de credencial")).toBeNull(); expect(confirm).not.toHaveBeenCalled();
+  });
+  it("does not recover a QR on reopening a detail and receiving an existing-credential conflict", async () => {
+    const f = setup(); vi.spyOn(window, "confirm").mockReturnValue(true); render(<RegistrationBrowser {...f} />); await open();
+    fireEvent.click(screen.getByText("Emitir credencial")); await screen.findByRole("img", { name: "QR de la credencial de inscripción" });
+    fireEvent.click(screen.getByText("Volver a inscripciones")); fireEvent.click(screen.getByText("Ver inscripción"));
+    await screen.findByText("Emitir credencial"); expect(screen.queryByRole("img")).toBeNull();
+    f.issueCredential.mockRejectedValue(new CredentialError("exists")); fireEvent.click(screen.getByText("Emitir credencial"));
+    await screen.findByRole("alert"); expect(screen.queryByRole("img")).toBeNull(); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
   });
 });

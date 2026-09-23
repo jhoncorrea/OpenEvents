@@ -1,6 +1,6 @@
 # ADR-060: Ciclo de vida del secreto web
 
-Estado: propuesto en issue #67; pendiente de integración.
+Estado: aceptado e integrado mediante PR #68 (merge e9c2f85).
 
 ## Contexto
 
