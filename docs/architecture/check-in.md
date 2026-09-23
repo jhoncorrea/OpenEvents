@@ -45,3 +45,13 @@ Los errores técnicos producen CheckInFailedError con mensaje fijo, sin SQL, par
 ## Evidencia y límites
 
 21 pruebas nuevas de entrada y 43 de integración cubren permisos, estados, aislamiento, auditoría, rollback, intentos simultáneos con conexiones independientes y una barrera real de ingreso sin confirmar. Se comprueba mediante pg_blocking_pids la espera ante cambios de usuario, asignación, evento, inscripción y credencial. Totales de API: 769 unitarias y 453 PostgreSQL; no son pruebas de navegador, JWT real ni carga de 20 operadores/p95. No cambia esquema ni dependencias.
+
+## Transporte HTTP - OE-04-002B / #75
+
+#73 quedó integrado mediante PR #74, merge 6360e7a, con CI 35909350092 aprobado y limpieza local confirmada. #75 registra POST /api/v1/events/:eventId/check-ins en buildApp y conecta el servidor a la operación interna con conexión raíz. No altera las garantías ni conecta el demo.
+
+Recibe JSON estricto con code string de hasta 256 caracteres y source manual/qr; UUID validado, query prohibida y cuerpo hasta 1 KiB. Content-Type application/json, charset UTF-8 opcional. El secreto permanece exacto. El guard exige checkin_operator antes de parsing. accepted=201, duplicate=409 y invalid=404. Los dos primeros devuelven solo id, registrationId, checkedInAt UTC y source dentro de checkIn; no exponen performedBy ni datos personales. invalid contiene solo status. El [contrato API](api-contract.md) sustituye los ejemplos provisionales con camera, attendee y previousCheckInAt.
+
+Autorización, evento no activo y fallos técnicos usan errores separados. Todas las respuestas de la ruta son no-store; logs de códigos fijos, sin token, cuerpo, URL/query ni errores originales. No se implementan reintentos: una respuesta perdida puede ocultar un commit confirmado y un nuevo intento depende de permisos/estados vigentes.
+
+58 pruebas HTTP nuevas verifican parsing, permisos globales, respuestas, UTC, proyección, no-store y logs. 18 nuevas de integración usan operación y PostgreSQL reales dentro de fixtures revertidos; comprueban filas y auditoría, pero no un COMMIT exterior HTTP real ni JWT de Entra. Las 43 pruebas internas, incluidas concurrencia con conexiones independientes y commit, se ejecutaron como regresión. Totales verificados: 827 unitarias API y 61 PostgreSQL focalizadas. Sin UI, cámara, activación/cierre, migraciones ni dependencias.

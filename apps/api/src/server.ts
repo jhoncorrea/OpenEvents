@@ -1,3 +1,4 @@
+import { registerCheckInForOperator } from "./modules/registrations/register-check-in-for-operator.js";
 import { listEventsForOperator, getEventForOperator } from "./modules/events/query-events-for-operator.js";
 import { searchRegistrationsForStaff } from "./modules/registrations/search-registrations-for-staff.js";
 import { importRegistrationCsvIdempotently, queryRegistrationCsvImport } from "./modules/registrations/registration-csv-idempotency.js";
@@ -34,6 +35,7 @@ const database = createDatabaseConnection({
 
 const app = buildApp({
   logger: true,
+  checkIn: (id, code, source, actor) => registerCheckInForOperator(database.db, id, code, source, actor),
   issueRegistrationCredential: (id, registrationId, actor) => issueRegistrationCredentialForOrganizer(database.db, id, registrationId, actor),
   registrationSearch: (id, input, actor) => searchRegistrationsForStaff(database.db, id, input, actor),
   registrationCsv: {
