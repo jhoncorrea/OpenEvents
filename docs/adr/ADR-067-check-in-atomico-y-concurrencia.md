@@ -1,6 +1,6 @@
 # ADR-067: Check-in atómico y concurrencia
 
-Estado: propuesto en issue #73; pendiente de integración.
+Estado: aceptado mediante PR #74, merge 6360e7a; CI aprobado.
 
 ## Contexto
 

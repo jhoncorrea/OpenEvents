@@ -436,3 +436,7 @@ Una emisión pendiente o un código visible protege la navegación voluntaria y 
 ## Check-in interno por operador (#73)
 
 registerCheckInForOperator exige identidad previamente verificada, usuario active, checkin_operator global y event_staff checkin_operator para el evento. No hereda organizer/admin ni provisiona usuarios. Revalida permisos incluso al consultar un ingreso duplicado. Bloquea usuario/asignación/evento/inscripción/credencial hasta terminar; estados y errores se detallan en [Check-in](check-in.md). No modifica rutas demo ni registra HTTP nuevo.
+
+## Transporte HTTP de check-in (#75)
+
+POST /api/v1/events/:eventId/check-ins usa createAuthGuard con checkin_operator en onRequest, antes del parser. La identidad solo procede del verificador; no se acepta actor en cuerpo/query. La operación mantiene usuario activo y asignación compatible por evento, también para duplicate. No hereda organizer/admin ni cambia las rutas demo. Errores y límites se describen en [Contrato API](api-contract.md). Cache-Control no-store, 401 con Bearer y logs sin secretos. Pruebas con verificador simulado; no equivalen a Entra manual.

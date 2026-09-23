@@ -267,52 +267,64 @@ El POST está implementado en OE-03-001A y los GET en OE-03-001C. Los GET actual
 | GET | `/api/v1/events/{eventId}/registrations/{registrationId}` | Organizer asignado | Consultar inscripción (implementado) |
 | POST | `/api/v1/events/{eventId}/registrations/{registrationId}/qr` | Organizer asignado | Emitir credencial opaca (JSON); reemisión e imagen QR pendientes |
 
-## 5. Check-in
+## 5. Check-in HTTP - OE-04-002B / #75
 
 ### `POST /api/v1/events/{eventId}/check-ins`
 
-Solicitud:
+Ruta persistente autenticada. La ruta `/api/check-ins` permanece como demo independiente.
+
+Bearer válido, rol global checkin_operator, usuario local activo y asignación checkin_operator al evento son obligatorios. El actor no se acepta desde el cuerpo. Organizer/admin solos no conceden acceso. No se crea personal automáticamente. El guard se ejecuta antes de analizar el cuerpo.
+
+Solicitud sin query, con Content-Type application/json, opcionalmente charset=utf-8 (también entre comillas). Otros parámetros, tipos, charset o ausencia del tipo producen 415. Límite: 1 KiB de cuerpo. Objeto estricto, sin campos adicionales:
 
 ```json
 {
   "code": "token-opaco-del-qr",
-  "source": "camera"
+  "source": "qr"
 }
 ```
 
-Primera validación correcta — `201 Created`:
+code es string obligatorio de hasta 256 caracteres; no se recorta ni se cambia el uso de mayúsculas. Un string vacío o mal formado dentro del límite llega a la operación y puede devolver invalid después de validar permisos y estado del evento. Campo ausente/tipo incorrecto/exceso de longitud generan 400. source solo admite manual o qr; indica lo declarado por el cliente, no demuestra uso de cámara. El ejemplo es ilustrativo, no una credencial válida.
+
+201 Created para accepted y 409 Conflict para duplicate, con la misma proyección de checkIn; duplicate conserva el ingreso original:
 
 ```json
 {
   "status": "accepted",
   "checkIn": {
-    "id": "uuid",
-    "registrationId": "uuid",
-    "checkedInAt": "2026-09-15T23:02:26.867Z"
-  },
-  "attendee": {
-    "displayName": "Ana María Torres"
+    "id": "uuid-del-ingreso",
+    "registrationId": "uuid-de-inscripcion",
+    "checkedInAt": "2026-09-23T19:00:00.000Z",
+    "source": "qr"
   }
 }
 ```
 
-Duplicado — `409 Conflict`:
+Los identificadores del ejemplo son marcadores; las respuestas reales contienen UUID. No se devuelve performedBy, attendee, token, hash ni campos adicionales de la operación. El operador se conserva en PostgreSQL para auditoría. La fecha se serializa mediante toISOString().
+
+404 Not Found para un código invalid, sin revelar el motivo ni datos de otra inscripción:
 
 ```json
-{
-  "status": "duplicate",
-  "previousCheckInAt": "2026-09-15T23:02:26.867Z"
-}
+{ "status": "invalid" }
 ```
 
-Inválido — `404 Not Found`:
+| HTTP | code o status | Significado |
+|---|---|---|
+| 201 | status accepted | Primer ingreso confirmado por la operación. |
+| 409 | status duplicate | Código todavía válido e ingreso previo; proyección original. |
+| 404 | status invalid | Código mal formado/inexistente/ajeno o inscripción/credencial inactiva. |
+| 401 | UNAUTHORIZED | Autenticación ausente/inválida; WWW-Authenticate: Bearer. |
+| 403 | FORBIDDEN | Rol global incompatible o usuario deshabilitado. |
+| 404 | EVENT_NOT_FOUND | Usuario local/asignación/evento ausentes o inaccesibles. |
+| 409 | CHECK_IN_NOT_ALLOWED | Evento no active. |
+| 400 | INVALID_CHECK_IN_INPUT | UUID, query, JSON o forma del cuerpo inválidos. |
+| 413 | PAYLOAD_TOO_LARGE | Cuerpo superior al límite. |
+| 415 | UNSUPPORTED_MEDIA_TYPE | Content-Type/charset no admitidos. |
+| 500 | INTERNAL_SERVER_ERROR | Fallo técnico con mensaje fijo. |
 
-```json
-{
-  "status": "invalid",
-  "message": "El código no pertenece a este evento."
-}
-```
+Las respuestas de esta ruta incluyen Cache-Control: no-store, también en fallos de autenticación y parser. Los errores técnicos no se traducen a resultados de negocio y no se confía en statusCode arbitrario de la operación. El logger conserva únicamente códigos fijos; no registra Authorization, code, cuerpo, URL/query ni errores originales. Los métodos no registrados siguen el comportamiento general de Fastify; CORS no sustituye autenticación.
+
+El servidor pasa la conexión raíz a registerCheckInForOperator, sin transacción exterior HTTP ni reintento. Perder la respuesta puede dejar resultado incierto; no implica rollback. Un nuevo intento explícito puede devolver duplicate si permisos y estados continúan válidos. No hay UI ni recuperación automática. La activación/cierre del evento sigue pendiente; las pruebas preparan estados mediante fixtures. Contrato interno y bloqueo: [Check-in](check-in.md).
 
 ## 6. Dashboard
 
