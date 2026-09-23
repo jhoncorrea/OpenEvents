@@ -1,6 +1,6 @@
 # ADR-063: Ciclo de vida y fallo del QR
 
-Estado: propuesto en issue #69; pendiente de integración.
+Estado: aceptado e integrado mediante PR #70 (merge 72d7190).
 
 ## Contexto
 

@@ -26,6 +26,7 @@ import {
 import { registerApiAttendee, type ApiRegistration } from "./api-registrations";
 import { issueApiRegistrationCredential, type IssuedCredential } from "./api-registration-credentials";
 import { CredentialError } from "./credential-error";
+import * as pngDownload from "./credential-qr-download";
 vi.mock("./api-registration-credentials", async original => ({ ...await original<typeof import("./api-registration-credentials")>(), issueApiRegistrationCredential: vi.fn() }));
 import { listApiRegistrations, getApiRegistration, searchApiRegistrations, type RegistrationPage } from "./api-registration-queries";
 import { RegistrationQueryError } from "./registration-query-error";
@@ -929,6 +930,15 @@ describe("SessionControls credential integration", () => {
     confirm.mockReturnValue(true); fireEvent.click(screen.getByText("Cerrar sesión"));
     await waitFor(() => expect(view.logoutRedirect).toHaveBeenCalledTimes(1)); expect(screen.queryByLabelText("Código de credencial")).toBeNull();
     expect(screen.queryByRole("img", { name: "QR de la credencial de inscripción" })).toBeNull();
+  });
+  it("discards a prepared PNG after confirmed logout without starting a download", async () => {
+    const pending = deferred<Blob>(); vi.spyOn(pngDownload, "createCredentialQrPng").mockReturnValue(pending.promise);
+    const start = vi.spyOn(pngDownload, "startCredentialQrDownload").mockImplementation(() => {});
+    vi.spyOn(window, "confirm").mockReturnValue(true); const view = setup(); await openCredential();
+    fireEvent.click(await screen.findByRole("button", { name: "Descargar QR (PNG)" }));
+    fireEvent.click(screen.getByText("Cerrar sesión")); await waitFor(() => expect(view.logoutRedirect).toHaveBeenCalledTimes(1));
+    await act(async () => pending.resolve(new Blob(["synthetic"], { type: "image/png" })));
+    expect(start).not.toHaveBeenCalled(); expect(screen.queryByRole("button", { name: "Descargar QR (PNG)" })).toBeNull();
   });
   it.each(["account", "interaction"])("discards pending issuance on %s change without voluntary confirmation", async mode => {
     const request = deferred<IssuedCredential>(); vi.mocked(issueApiRegistrationCredential).mockReturnValue(request.promise);
