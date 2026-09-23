@@ -432,3 +432,7 @@ La ruta POST de credenciales exige organizer global desde onRequest; el actor pr
 Solo el recorrido organizer recibe el callback de emisión. El recorrido operator no expone esa acción; admin sin organizer tampoco obtiene Mis eventos. La sesión transmite cuenta, scope y función de vigencia al cliente; cambiar cuenta o perder acceso desmonta los datos protegidos. No se altera la autorización del servidor.
 
 Una emisión pendiente o un código visible protege la navegación voluntaria y el cierre de sesión mediante confirmación, y deshabilita acciones de sesión/creación que compiten con la vista mediante el control de edición existente. Pérdida de permisos o cambio de cuenta retira el secreto inmediatamente sin confirmación. Cancelar una petición no cancela necesariamente una escritura ya realizada en la API.
+
+## Check-in interno por operador (#73)
+
+registerCheckInForOperator exige identidad previamente verificada, usuario active, checkin_operator global y event_staff checkin_operator para el evento. No hereda organizer/admin ni provisiona usuarios. Revalida permisos incluso al consultar un ingreso duplicado. Bloquea usuario/asignación/evento/inscripción/credencial hasta terminar; estados y errores se detallan en [Check-in](check-in.md). No modifica rutas demo ni registra HTTP nuevo.

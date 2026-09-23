@@ -1,6 +1,6 @@
 # ADR-065: Ciclo de vida de la descarga
 
-Estado: propuesto en issue #71; pendiente de integración.
+Estado: aceptado mediante PR #72, merge ac3c01b; CI aprobado.
 
 ## Contexto
 
