@@ -236,3 +236,7 @@ UNIQUE(registration_id) sigue cubriendo todos los estados: active, revoked y exp
 ## Check-in y auditoría atómicos (#73)
 
 Se reutilizan check_in y audit_log sin migración. UNIQUE(registration_id) impide segundos ingresos; performed_by corresponde al usuario local autorizado y source se valida como manual/qr en la operación. checked_in_at usa clock_timestamp() tras adquirir los bloqueos. Se inserta audit_log check_in.accepted con actor/evento y referencia al ingreso en la misma transacción, metadata vacío. Un error revierte ambas filas; duplicate no altera la primera. No se persiste token ni hash en esas tablas. Las restricciones FK/UNIQUE no sustituyen permisos o estados: véase [Check-in](check-in.md).
+
+## Transiciones autorizadas del evento (#77)
+
+Se reutilizan events.status/version y audit_logs, sin migración. draft -> active y active -> closed incrementan version una vez y registran event.activated/event.closed con estados/versiones anterior y nueva en la misma transacción. No modifican inscripciones, credenciales ni ingresos. [Contrato y bloqueos](event-lifecycle.md).
