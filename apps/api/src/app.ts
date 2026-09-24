@@ -1,3 +1,4 @@
+import { registerEventLifecycleRoutes, type EventLifecycleOperations } from "./modules/events/event-lifecycle-routes.js";
 import { registerCheckInRoutes, type CheckInOperation } from "./modules/registrations/check-in-routes.js";
 import { registerRegistrationCredentialRoutes, type IssueRegistrationCredentialOperation } from "./modules/registrations/registration-credential-routes.js";
 import { registerOperatorEventQueryRoutes, type OperatorEventQueryOperations } from "./modules/events/operator-event-query-routes.js";
@@ -35,6 +36,7 @@ interface BuildAppOptions {
   registerAttendee?: RegisterAttendeeOperation;
   issueRegistrationCredential?: IssueRegistrationCredentialOperation;
   checkIn?: CheckInOperation;
+  eventLifecycle?: EventLifecycleOperations;
 }
 
 export function buildApp({
@@ -50,6 +52,7 @@ export function buildApp({
   registerAttendee,
   issueRegistrationCredential,
   checkIn,
+  eventLifecycle,
 }: BuildAppOptions) {
   const app = Fastify({
     // Las URL de búsqueda pueden contener PII. Mantener logs explícitos de códigos, sin URL automática.
@@ -89,6 +92,7 @@ export function buildApp({
     createEvent,
   });
 
+  if (eventLifecycle) registerEventLifecycleRoutes(app, verifyAccessToken, eventLifecycle);
   if (checkIn) registerCheckInRoutes(app, verifyAccessToken, checkIn);
   if (issueRegistrationCredential) registerRegistrationCredentialRoutes(app, verifyAccessToken, issueRegistrationCredential);
 

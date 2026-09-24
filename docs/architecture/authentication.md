@@ -444,3 +444,7 @@ POST /api/v1/events/:eventId/check-ins usa createAuthGuard con checkin_operator 
 ## Autorización del ciclo de vida (#77)
 
 Activar/cerrar exige organizer global, tenantId/objectId válidos, usuario local activo y asignación organizer al evento. No hay privilegio implícito de admin/checkin_operator ni aprovisionamiento. Los permisos se bloquean y revalidan antes del evento. Operaciones internas, sin nuevo guard HTTP: [ciclo de vida](event-lifecycle.md).
+
+## Transporte HTTP del ciclo de vida (#79)
+
+POST activate/close exige Bearer y organizer global en onRequest antes del parser. El actor verificado se delega a las operaciones de #77, que comprueban usuario activo y asignación organizer al evento. 401 con Bearer, 403 para permisos y 404 para recursos inaccesibles; no-store también en errores. Sin privilegios implícitos ni aprovisionamiento. [Contrato HTTP](api-contract.md).

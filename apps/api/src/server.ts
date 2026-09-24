@@ -1,3 +1,4 @@
+import { activateEventForOrganizer, closeEventForOrganizer } from "./modules/events/change-event-state-for-organizer.js";
 import { registerCheckInForOperator } from "./modules/registrations/register-check-in-for-operator.js";
 import { listEventsForOperator, getEventForOperator } from "./modules/events/query-events-for-operator.js";
 import { searchRegistrationsForStaff } from "./modules/registrations/search-registrations-for-staff.js";
@@ -35,6 +36,10 @@ const database = createDatabaseConnection({
 
 const app = buildApp({
   logger: true,
+  eventLifecycle: {
+    activate: (id, input, actor) => activateEventForOrganizer(database.db, id, input, actor),
+    close: (id, input, actor) => closeEventForOrganizer(database.db, id, input, actor),
+  },
   checkIn: (id, code, source, actor) => registerCheckInForOperator(database.db, id, code, source, actor),
   issueRegistrationCredential: (id, registrationId, actor) => issueRegistrationCredentialForOrganizer(database.db, id, registrationId, actor),
   registrationSearch: (id, input, actor) => searchRegistrationsForStaff(database.db, id, input, actor),
