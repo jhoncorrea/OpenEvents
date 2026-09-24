@@ -1,6 +1,6 @@
 # ADR-079: Conflictos y consulta del estado
 
-Estado: propuesto en issue #81; pendiente de integración.
+Estado: aceptado e integrado mediante PR #82 (issue #81), merge dd6ddc9.
 
 ## Contexto
 

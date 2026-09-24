@@ -1,3 +1,5 @@
+import OperatorCheckIn, { type SubmitCheckIn } from "./OperatorCheckIn";
+import { CheckInError } from "./check-in-error";
 import { useEffect, useId, useRef, useState } from "react";
 import type { OperatorEvent, OperatorEventPage } from "./api-operator-events";
 import { normalizeRegistrationSearch, type RegistrationPage } from "./api-registration-queries";
@@ -6,6 +8,7 @@ import { RegistrationQueryError } from "./registration-query-error";
 import "./operator-events.css";
 
 interface Props {
+  submitCheckIn?: SubmitCheckIn;
   accountKey: string; enabled: boolean;
   loadPage: (cursor: string | undefined, signal: AbortSignal) => Promise<OperatorEventPage>;
   loadDetail: (eventId: string, signal: AbortSignal) => Promise<OperatorEvent>;
@@ -16,7 +19,8 @@ const statuses = { draft: "Borrador", active: "Activo", closed: "Cerrado", cance
 export default function OperatorEvents(props: Props) {
   return props.enabled ? <Browser key={props.accountKey} {...props} /> : null;
 }
-function Browser({ loadPage, loadDetail, searchPage, onAccessInvalidated }: Props) {
+function Browser({ submitCheckIn, loadPage, loadDetail, searchPage, onAccessInvalidated }: Props) {
+  const [checkInBlocked, setCheckInBlocked] = useState(false);
   const [events, setEvents] = useState<OperatorEvent[]>([]);
   const [eventCursor, setEventCursor] = useState<string | null>(null);
   const [eventsLoaded, setEventsLoaded] = useState(false);
@@ -36,11 +40,13 @@ function Browser({ loadPage, loadDetail, searchPage, onAccessInvalidated }: Prop
     setDraft(""); setTerm(""); setResults({ items: [], nextCursor: null }); setSearched(false); searchCursors.current.clear();
   }
   function failed(cause: unknown) {
-    const safe = cause instanceof EventQueryError || cause instanceof RegistrationQueryError ? cause : new EventQueryError("unavailable");
+    const safe = cause instanceof CheckInError || cause instanceof EventQueryError || cause instanceof RegistrationQueryError ? cause : new EventQueryError("unavailable");
     if (safe.kind === "cancelled") return;
     setError(safe.message);
     if (["authentication", "interaction_required", "unauthorized", "forbidden"].includes(safe.kind)) {
       setBlocked(true); setEvents([]); setEvent(null); resetSearch(); onAccessInvalidated();
+    } else if (safe.kind === "not_active") {
+      setCheckInBlocked(true);
     } else if (safe.kind === "not_found") {
       setEvent(null); setEvents([]); setEventCursor(null); setEventsLoaded(false); resetSearch();
     }
@@ -64,7 +70,7 @@ function Browser({ loadPage, loadDetail, searchPage, onAccessInvalidated }: Prop
     });
   }
   function select(id: string) {
-    resetSearch();
+    resetSearch(); setEvent(null); setCheckInBlocked(false);
     void run(signal => loadDetail(id, signal), detail => { setEvent(detail); });
   }
   function search(more = false, repeat = false) {
@@ -97,6 +103,8 @@ function Browser({ loadPage, loadDetail, searchPage, onAccessInvalidated }: Prop
       <button type="button" onClick={() => { cancel(); setEvent(null); resetSearch(); setError(""); }}>Volver a eventos asignados</button>
       <h3>{event.name}</h3><p>{event.location} · {statuses[event.status]}</p>
       <p>{new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short", timeZone: event.timezone }).format(new Date(event.startsAt))} – {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short", timeZone: event.timezone }).format(new Date(event.endsAt))} ({event.timezone})</p>
+      {submitCheckIn && event.status === "active" && !checkInBlocked && <OperatorCheckIn key={event.id} eventId={event.id} timezone={event.timezone} submit={submitCheckIn} onFailure={failed} />}
+      {checkInBlocked && <button type="button" disabled={busy} onClick={() => select(event.id)}>Consultar estado actual</button>}
       <form onSubmit={e => { e.preventDefault(); search(); }}>
         <label htmlFor={inputId}>Nombre o correo del inscrito</label>
         <input id={inputId} type="search" maxLength={200} autoComplete="off" value={draft} onChange={e => setDraft(e.target.value)} />
