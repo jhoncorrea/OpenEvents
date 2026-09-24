@@ -324,7 +324,7 @@ Los identificadores del ejemplo son marcadores; las respuestas reales contienen 
 
 Las respuestas de esta ruta incluyen Cache-Control: no-store, también en fallos de autenticación y parser. Los errores técnicos no se traducen a resultados de negocio y no se confía en statusCode arbitrario de la operación. El logger conserva únicamente códigos fijos; no registra Authorization, code, cuerpo, URL/query ni errores originales. Los métodos no registrados siguen el comportamiento general de Fastify; CORS no sustituye autenticación.
 
-El servidor pasa la conexión raíz a registerCheckInForOperator, sin transacción exterior HTTP ni reintento. Perder la respuesta puede dejar resultado incierto; no implica rollback. Un nuevo intento explícito puede devolver duplicate si permisos y estados continúan válidos. No hay UI ni recuperación automática. La exposición HTTP de activación/cierre sigue pendiente; #77 añade las operaciones internas y sus pruebas con fixtures. Contrato interno y bloqueo: [Check-in](check-in.md).
+El servidor pasa la conexión raíz a registerCheckInForOperator, sin transacción exterior HTTP ni reintento. Perder la respuesta puede dejar resultado incierto; no implica rollback. Un nuevo intento explícito puede devolver duplicate si permisos y estados continúan válidos. No hay UI ni recuperación automática. La exposición HTTP de activación/cierre se incorpora en #79; #77 aporta las operaciones internas. Contrato interno y bloqueo: [Check-in](check-in.md).
 
 ## 6. Dashboard
 
@@ -695,6 +695,40 @@ La respuesta 201 exige exactamente los campos previstos: UUID de credencial, eve
 
 La persistencia se incorpora como registerCheckInForOperator(db, eventId, token, source, actor), no como endpoint. Devuelve invalid o accepted/duplicate con el ingreso original; checkedInAt es Date y el futuro adaptador serializará UTC. No incluye token, hash ni PII del asistente. La autorización, los errores y las condiciones de confirmación están en [Check-in](check-in.md). POST /api/check-ins continúa siendo demo en memoria; no usarlo como evidencia de check-in persistido. La futura ruta autenticada se abordará en otra entrega.
 
-## Ciclo de vida interno del evento (#77)
+## Ciclo de vida HTTP - OE-02-003B / #79
 
-La activación/cierre cuenta ahora con operaciones internas autorizadas y auditadas: [contrato interno](event-lifecycle.md). Las rutas de activación/cierre siguen pendientes; no se debe interpretar su mención en el diseño como endpoints disponibles. PATCH de edición no acepta status. El check-in HTTP conserva su contrato y requiere active.
+### Solicitud
+
+`POST /api/v1/events/{eventId}/activate` y `POST /api/v1/events/{eventId}/close` están implementadas. Bearer válido y organizer global antes de analizar el cuerpo; la operación exige además usuario local activo y asignación organizer para el evento. Admin/operador solos no conceden acceso. Actor solo del verificador, nunca del cliente.
+
+Content-Type application/json con charset=utf-8 opcional (también entre comillas, sin distinguir mayúsculas); otros tipos, parámetros, charset o ausencia del tipo producen 415. Cuerpo máximo 1 KiB. UUID validado/normalizado y query prohibida. Objeto estricto, sin coerción ni campos extra:
+
+```json
+{ "expectedVersion": 1 }
+```
+
+expectedVersion: entero entre 1 y 2147483646. No se admite status, actor o fechas. Activar exige draft; cerrar exige active. Primero se comprueba estado, después versión. No se reabre closed, no se acepta cancelled ni se considera éxito repetir la transición. No hay restricciones automáticas por fecha.
+
+### Respuesta
+
+200 OK devuelve directamente el evento con id, name, slug, startsAt, endsAt, timezone, location, status, createdAt y version. Fechas ISO UTC; misma proyección que la consulta/edición existente. Status active o closed y versión incrementada una vez. Sin campos internos adicionales. La operación usa conexión raíz: el éxito sigue al commit de estado, versión y auditoría.
+
+| HTTP | Código | Situación |
+|---|---|---|
+| 400 | INVALID_EVENT_LIFECYCLE_INPUT | UUID, query, JSON o cuerpo inválidos. |
+| 401 | UNAUTHORIZED | Autenticación ausente/inválida; WWW-Authenticate: Bearer. |
+| 403 | FORBIDDEN | Rol incompatible o usuario local deshabilitado. |
+| 404 | EVENT_NOT_FOUND | Evento, usuario local o asignación ausentes/inaccesibles. |
+| 409 | EVENT_TRANSITION_NOT_ALLOWED | Estado incompatible, incluida repetición. |
+| 409 | EVENT_VERSION_CONFLICT | Estado compatible pero versión obsoleta. |
+| 413 | PAYLOAD_TOO_LARGE | Cuerpo superior a 1 KiB. |
+| 415 | UNSUPPORTED_MEDIA_TYPE | Tipo/charset no admitidos. |
+| 500 | INTERNAL_SERVER_ERROR | Fallo técnico con mensaje fijo. |
+
+Errores planos {code, message}, sin cuerpo/URL/query/Bearer/SQL/error original. Cache-Control: no-store en respuestas de ambas rutas, incluidos fallos de autenticación y parsing. Logs explícitos de códigos fijos. CORS no sustituye permisos; métodos no registrados siguen el comportamiento general de Fastify.
+
+### Persistencia, pruebas y límites
+
+Se reutilizan sin cambios las operaciones de #77. No se añade transacción HTTP exterior ni reintento automático. Una confirmación perdida no demuestra rollback: consultar el evento antes de decidir otra acción. La repetición se rechaza por estado, no se convierte en éxito idempotente. PATCH no acepta status. Se conservan los bloqueos y auditoría, así como inscripciones, credenciales e ingresos existentes; ver [ciclo de vida](event-lifecycle.md).
+
+114 pruebas HTTP y 25 PostgreSQL nuevas. Las últimas usan conexión raíz y un observador independiente para verificar el commit antes del 200; fixtures sintéticos eliminados al terminar. Identidad simulada, no validación manual con Entra ni prueba de carga. 59 casos internos se ejecutan como regresión, incluida concurrencia. La web y la cámara permanecen pendientes; no cambia el demo ni el esquema.

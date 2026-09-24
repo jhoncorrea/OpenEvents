@@ -2,7 +2,7 @@
 
 ## Operaciones internas - OE-02-003A / #77
 
-`activateEventForOrganizer(db, eventId, { expectedVersion }, actor)` y `closeEventForOrganizer(db, eventId, { expectedVersion }, actor)` retornan la proyección existente QueriedEvent. No están expuestas por HTTP ni por la web. El PATCH de edición conserva su contrato y no acepta status.
+`activateEventForOrganizer(db, eventId, { expectedVersion }, actor)` y `closeEventForOrganizer(db, eventId, { expectedVersion }, actor)` retornan la proyección existente QueriedEvent. Desde #79 están expuestas por HTTP; la web sigue pendiente. El PATCH de edición conserva su contrato y no acepta status.
 
 | Operación | Estado requerido | Destino |
 |---|---|---|
@@ -34,3 +34,9 @@ Cerrar conserva inscripciones, credenciales e ingresos previos: no los elimina n
 Validación del agente en copia aislada: 845 pruebas unitarias API y 120 PostgreSQL focalizadas aprobadas (965 casos distintos). Incluyen 77 nuevas (18 de entrada y 59 de integración) y 61 regresiones (18 edición y 43 check-in). Typecheck, lint y build API correctos. No se repiten pruebas web sin cambios. Validación global confirmada por la salida del mantenedor del 24 de septiembre de 2026: 2.311 pruebas aprobadas (845 API, 936 web y 530 PostgreSQL), typecheck, lint y build correctos. Las pruebas anteriores están incluidas y no se suman nuevamente. git diff --check sin errores de espacios; solo avisos de normalización CRLF a LF. Pendientes commit, PR, CI y merge.
 
 Las pruebas usan fixtures sintéticos y conexiones PostgreSQL independientes. No acreditan un recorrido HTTP o web de activación/cierre.
+
+## Exposición HTTP - OE-02-003B / #79
+
+#77 quedó integrado mediante PR #78, merge d7d1be6, CI 36030450886 aprobado y limpieza local confirmada. #79 registra POST /api/v1/events/:eventId/activate y /close con organizer antes del parser, JSON estricto expectedVersion, UUID y sin query. Devuelve 200 con el evento y fechas UTC. Mantiene errores explícitos, no-store y logs sanitizados. El [contrato API](api-contract.md) define límites y estados HTTP.
+
+El servidor utiliza conexión raíz, sin transacción exterior ni reintentos. Las 25 pruebas HTTP/PostgreSQL nuevas verifican permisos, estados, versión, repetición, auditoría y commit visible desde otra conexión antes del éxito. Se simula el verificador de identidad. 114 pruebas HTTP nuevas y 59 regresiones internas también aprobadas; typecheck, lint y build API correctos. Los botones web siguen pendientes.

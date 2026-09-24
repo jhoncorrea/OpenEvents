@@ -1,6 +1,6 @@
 # ADR-074: Auditoría atómica del ciclo de vida
 
-Estado: propuesto en issue #77; pendiente de integración.
+Estado: aceptado mediante PR #78, merge d7d1be6; CI aprobado.
 
 ## Contexto
 
