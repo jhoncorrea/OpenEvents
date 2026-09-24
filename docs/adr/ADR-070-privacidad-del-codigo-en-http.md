@@ -1,6 +1,6 @@
 # ADR-070: Privacidad del código en HTTP
 
-Estado: propuesto en issue #75; pendiente de integración.
+Estado: aceptado mediante PR #76, merge 6f87944; CI aprobado.
 
 ## Contexto
 

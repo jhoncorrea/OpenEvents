@@ -55,3 +55,7 @@ Recibe JSON estricto con code string de hasta 256 caracteres y source manual/qr;
 Autorización, evento no activo y fallos técnicos usan errores separados. Todas las respuestas de la ruta son no-store; logs de códigos fijos, sin token, cuerpo, URL/query ni errores originales. No se implementan reintentos: una respuesta perdida puede ocultar un commit confirmado y un nuevo intento depende de permisos/estados vigentes.
 
 58 pruebas HTTP nuevas verifican parsing, permisos globales, respuestas, UTC, proyección, no-store y logs. 18 nuevas de integración usan operación y PostgreSQL reales dentro de fixtures revertidos; comprueban filas y auditoría, pero no un COMMIT exterior HTTP real ni JWT de Entra. Las 43 pruebas internas, incluidas concurrencia con conexiones independientes y commit, se ejecutaron como regresión. Totales verificados: 827 unitarias API y 61 PostgreSQL focalizadas. Sin UI, cámara, activación/cierre, migraciones ni dependencias.
+
+## Coordinación con el cierre (#77)
+
+closeEventForOrganizer obtiene UPDATE sobre el evento, incompatible con SHARE de check-in. Un ingreso que bloquea primero puede confirmar antes del cierre; cuando el cierre confirma primero, el ingreso pendiente observa closed y se rechaza sin escritura. Se conservan ingresos/credenciales/inscripciones existentes. La activación y el cierre internos no añaden todavía rutas ni botones: [contrato](event-lifecycle.md).

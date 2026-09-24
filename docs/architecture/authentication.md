@@ -440,3 +440,7 @@ registerCheckInForOperator exige identidad previamente verificada, usuario activ
 ## Transporte HTTP de check-in (#75)
 
 POST /api/v1/events/:eventId/check-ins usa createAuthGuard con checkin_operator en onRequest, antes del parser. La identidad solo procede del verificador; no se acepta actor en cuerpo/query. La operación mantiene usuario activo y asignación compatible por evento, también para duplicate. No hereda organizer/admin ni cambia las rutas demo. Errores y límites se describen en [Contrato API](api-contract.md). Cache-Control no-store, 401 con Bearer y logs sin secretos. Pruebas con verificador simulado; no equivalen a Entra manual.
+
+## Autorización del ciclo de vida (#77)
+
+Activar/cerrar exige organizer global, tenantId/objectId válidos, usuario local activo y asignación organizer al evento. No hay privilegio implícito de admin/checkin_operator ni aprovisionamiento. Los permisos se bloquean y revalidan antes del evento. Operaciones internas, sin nuevo guard HTTP: [ciclo de vida](event-lifecycle.md).

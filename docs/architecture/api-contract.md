@@ -324,7 +324,7 @@ Los identificadores del ejemplo son marcadores; las respuestas reales contienen 
 
 Las respuestas de esta ruta incluyen Cache-Control: no-store, también en fallos de autenticación y parser. Los errores técnicos no se traducen a resultados de negocio y no se confía en statusCode arbitrario de la operación. El logger conserva únicamente códigos fijos; no registra Authorization, code, cuerpo, URL/query ni errores originales. Los métodos no registrados siguen el comportamiento general de Fastify; CORS no sustituye autenticación.
 
-El servidor pasa la conexión raíz a registerCheckInForOperator, sin transacción exterior HTTP ni reintento. Perder la respuesta puede dejar resultado incierto; no implica rollback. Un nuevo intento explícito puede devolver duplicate si permisos y estados continúan válidos. No hay UI ni recuperación automática. La activación/cierre del evento sigue pendiente; las pruebas preparan estados mediante fixtures. Contrato interno y bloqueo: [Check-in](check-in.md).
+El servidor pasa la conexión raíz a registerCheckInForOperator, sin transacción exterior HTTP ni reintento. Perder la respuesta puede dejar resultado incierto; no implica rollback. Un nuevo intento explícito puede devolver duplicate si permisos y estados continúan válidos. No hay UI ni recuperación automática. La exposición HTTP de activación/cierre sigue pendiente; #77 añade las operaciones internas y sus pruebas con fixtures. Contrato interno y bloqueo: [Check-in](check-in.md).
 
 ## 6. Dashboard
 
@@ -694,3 +694,7 @@ La respuesta 201 exige exactamente los campos previstos: UUID de credencial, eve
 ## Operación interna de check-in (#73)
 
 La persistencia se incorpora como registerCheckInForOperator(db, eventId, token, source, actor), no como endpoint. Devuelve invalid o accepted/duplicate con el ingreso original; checkedInAt es Date y el futuro adaptador serializará UTC. No incluye token, hash ni PII del asistente. La autorización, los errores y las condiciones de confirmación están en [Check-in](check-in.md). POST /api/check-ins continúa siendo demo en memoria; no usarlo como evidencia de check-in persistido. La futura ruta autenticada se abordará en otra entrega.
+
+## Ciclo de vida interno del evento (#77)
+
+La activación/cierre cuenta ahora con operaciones internas autorizadas y auditadas: [contrato interno](event-lifecycle.md). Las rutas de activación/cierre siguen pendientes; no se debe interpretar su mención en el diseño como endpoints disponibles. PATCH de edición no acepta status. El check-in HTTP conserva su contrato y requiere active.
