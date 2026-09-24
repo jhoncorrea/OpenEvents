@@ -1,3 +1,5 @@
+import { EventLifecycleError } from "./event-lifecycle-error";
+import type { EventLifecycleAction } from "./api-event-lifecycle";
 import RegistrationCsvForm, { type RegistrationCsvFormProps } from "./RegistrationCsvForm";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { EventQueryError, type ApiEvent, type ApiEventPage } from "./api-event-queries";
@@ -30,6 +32,7 @@ const EditEventForm = lazy(() => import("./EditEventForm").catch(() => ({
 })));
 
 interface Props {
+  changeEventState?: (id: string, action: EventLifecycleAction, input: { expectedVersion: number }, signal: AbortSignal) => Promise<ApiEvent>;
   sendCsv?: RegistrationCsvFormProps["send"];
   lookupCsv?: RegistrationCsvFormProps["lookup"];
   accountKey: string;
@@ -63,7 +66,7 @@ export default function MyEvents(props: Props) {
   return props.enabled ? <EventBrowser key={props.accountKey} {...props} /> : null;
 }
 
-function EventBrowser({ issueCredential, onCredentialSensitiveChange, searchRegistrations, sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
+function EventBrowser({ changeEventState, issueCredential, onCredentialSensitiveChange, searchRegistrations, sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
   const [items, setItems] = useState<ApiEvent[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -74,6 +77,8 @@ function EventBrowser({ issueCredential, onCredentialSensitiveChange, searchRegi
   const [registering, setRegistering] = useState<ApiEvent | null>(null);
   const [browsingRegistrations, setBrowsingRegistrations] = useState<ApiEvent | null>(null);
   const uncertainIds = useRef(new Set<string>());
+  const [lifecycleRefresh, setLifecycleRefresh] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +146,7 @@ function EventBrowser({ issueCredential, onCredentialSensitiveChange, searchRegi
     try {
       const event = await loadDetail(id, request.signal);
       if (request.current()) {
-        setDetail(event);
+        setDetail(event); setLifecycleRefresh(false);
         setItems(previous => previous.map(item => item.id === event.id ? event : item));
         if (mode === "csv") { setCsvEvent(event); onEditingChange?.(true); }
         if (mode === "registrations") setBrowsingRegistrations(event);
@@ -161,8 +166,39 @@ function EventBrowser({ issueCredential, onCredentialSensitiveChange, searchRegi
       }
     } finally { if (request.current()) { active.current = null; setBusy(false); } }
   }
+  async function transition() {
+    if (!detail || !changeEventState || active.current || blocked || lifecycleRefresh ||
+        (detail.status !== "draft" && detail.status !== "active")) return;
+    const event = detail;
+    const action = event.status === "draft" ? "activate" : "close";
+    const effect = action === "activate" ? "Permitirá el check-in y dejará de admitir edición de borrador." :
+      "Impedirá nuevos ingresos y conservará el historial. No podrás reabrirlo desde esta aplicación.";
+    if (!window.confirm(`${action === "activate" ? "Activar" : "Cerrar"} el evento «${event.name}»? ${effect}`)) return;
+    const request = begin(); setTransitioning(true);
+    try {
+      const updated = await changeEventState(event.id, action, { expectedVersion: event.version }, request.signal);
+      if (!request.current()) return;
+      setDetail(updated); setItems(previous => previous.map(item => item.id === updated.id ? updated : item));
+      setNotice(action === "activate" ? "Evento activado correctamente." : "Evento cerrado correctamente.");
+      heading.current?.focus();
+    } catch (cause) {
+      if (!request.current()) return;
+      const failure = cause instanceof EventLifecycleError ? cause : new EventLifecycleError("uncertain");
+      if (["authentication", "interaction_required", "unauthorized", "forbidden"].includes(failure.kind)) {
+        failed(new EventQueryError("unauthorized"));
+      } else if (failure.kind === "not_found") {
+        setDetail(null); setSelected(null); setItems(previous => previous.filter(item => item.id !== event.id));
+        setNotice(failure.message);
+      } else {
+        setLifecycleRefresh(true); setError(failure.message);
+      }
+    } finally {
+      if (request.current()) { active.current = null; setBusy(false); setTransitioning(false); }
+    }
+  }
   function back() {
     sequence.current++; active.current?.abort(); active.current = null;
+    setTransitioning(false); setLifecycleRefresh(false);
     setSelected(null); setDetail(null); setBrowsingRegistrations(null); changeEditing(null); changeRegistering(null); setBusy(false); setError(null); setNotice(null);
     requestAnimationFrame(() => returnButton.current?.focus());
   }
@@ -174,11 +210,11 @@ function EventBrowser({ issueCredential, onCredentialSensitiveChange, searchRegi
         ? <button type="button" onClick={back}>Volver al listado</button>
         : <button type="button" disabled={busy || blocked} onClick={() => void page()}>{loaded ? "Actualizar listado" : "Cargar eventos"}</button>)}
     </div>
-    {busy && <p role="status">{selected ? "Cargando detalle…" : "Cargando eventos…"}</p>}
+    {busy && <p role="status">{transitioning ? "Confirmando cambio de estado…" : selected ? "Cargando detalle…" : "Cargando eventos…"}</p>}
     {error && <p role="alert" className="my-events-error">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     {blocked && <p>Vuelve a comprobar el acceso con tu cuenta.</p>}
-    {!blocked && selected && !busy && error && <button type="button" onClick={() => void open(selected)}>Reintentar detalle</button>}
+    {!blocked && selected && !busy && error && <button type="button" onClick={() => void open(selected)}>{lifecycleRefresh ? "Consultar estado actual" : "Reintentar detalle"}</button>}
     {!selected && !blocked && <>
       {!loaded && !busy && !error && <p>Carga los eventos que tienes asignados como organizador.</p>}
       {loaded && items.length === 0 && !busy && <p>No tienes eventos asignados.</p>}
@@ -206,12 +242,14 @@ function EventBrowser({ issueCredential, onCredentialSensitiveChange, searchRegi
       <dt>Slug</dt><dd>{detail.slug}</dd>
       <dt>Identificador</dt><dd>{detail.id}</dd>
     </dl>
-      {sendCsv && lookupCsv && <button type="button" disabled={busy} onClick={() => void open(detail.id, undefined, "csv")}>{detail.status === "draft" || detail.status === "active" ? "Importar CSV" : "Recuperar importación CSV"}</button>}
-      {loadRegistrations && loadRegistrationDetail && <button type="button" disabled={busy}
+      {changeEventState && (detail.status === "draft" || detail.status === "active") && <button type="button"
+        disabled={busy || lifecycleRefresh} onClick={() => void transition()}>{detail.status === "draft" ? "Activar evento" : "Cerrar evento"}</button>}
+      {sendCsv && lookupCsv && <button type="button" disabled={busy || lifecycleRefresh} onClick={() => void open(detail.id, undefined, "csv")}>{detail.status === "draft" || detail.status === "active" ? "Importar CSV" : "Recuperar importación CSV"}</button>}
+      {loadRegistrations && loadRegistrationDetail && <button type="button" disabled={busy || lifecycleRefresh}
         onClick={() => void open(detail.id, undefined, "registrations")}>Ver inscripciones</button>}
-      {detail.status === "draft" && <button type="button" disabled={busy} onClick={() => void open(detail.id, undefined, "edit")}>Editar evento</button>}
+      {detail.status === "draft" && <button type="button" disabled={busy || lifecycleRefresh} onClick={() => void open(detail.id, undefined, "edit")}>Editar evento</button>}
       {registerAttendee && (detail.status === "draft" || detail.status === "active") && <button type="button"
-        disabled={busy || registrationBlocked(detail.id)} onClick={() => void open(detail.id, undefined, "register")}>Registrar asistente</button>}
+        disabled={busy || lifecycleRefresh || registrationBlocked(detail.id)} onClick={() => void open(detail.id, undefined, "register")}>Registrar asistente</button>}
       {registrationBlocked(detail.id) && <p role="alert">Hay una inscripción con resultado pendiente de verificar. Podría haberse guardado. No vuelvas a enviarla; consulta con el organizador responsable antes de continuar.</p>}
     </>}
     {csvEvent && sendCsv && lookupCsv && !blocked && <RegistrationCsvForm accountKey={accountKey} enabled={!blocked} event={csvEvent}

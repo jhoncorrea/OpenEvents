@@ -1,3 +1,5 @@
+import { EventLifecycleError } from "./event-lifecycle-error";
+import type { EventLifecycleAction } from "./api-event-lifecycle";
 import { CredentialError } from "./credential-error";
 import { CsvImportError } from "./csv-import-error";
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
@@ -387,6 +389,24 @@ function AccountControls({
       throw error;
     }
   }
+  async function handleLifecycle(eventId: string, action: EventLifecycleAction, input: { expectedVersion: number }, signal: AbortSignal) {
+    if (signal.aborted) throw new EventLifecycleError("cancelled");
+    if (!account || !isCurrentAccount() || !canCreate || busy || operationLock.current) {
+      throw new EventLifecycleError("unauthorized");
+    }
+    try {
+      const config = parseAuthConfig(import.meta.env);
+      const { changeApiEventState } = await import("./api-event-lifecycle");
+      if (signal.aborted || !isCurrentAccount()) throw new EventLifecycleError("cancelled");
+      const updated = await changeApiEventState({ instance, account, apiScope: config.apiScope,
+        apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, action, input, signal, isCurrent: isCurrentAccount });
+      if (signal.aborted || !isCurrentAccount()) throw new EventLifecycleError("cancelled");
+      return updated;
+    } catch (error) {
+      if (signal.aborted || !isCurrentAccount()) throw new EventLifecycleError("cancelled");
+      throw error;
+    }
+  }
   async function handleCredential(eventId: string, registrationId: string, signal: AbortSignal) {
     const current = () => !signal.aborted && isCurrentAccount();
     if (!current()) throw new CredentialError("cancelled_before_send");
@@ -551,6 +571,7 @@ function AccountControls({
             loadPage={queryEvents}
             loadDetail={queryDetail}
             saveEvent={handleEdit}
+            changeEventState={handleLifecycle}
             sendCsv={(id, key, bytes, signal) => csvOperation(id, key, signal, bytes)}
             lookupCsv={(id, key, signal) => csvOperation(id, key, signal)}
             registerAttendee={handleRegistration}

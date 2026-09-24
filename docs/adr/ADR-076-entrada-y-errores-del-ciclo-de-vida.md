@@ -1,6 +1,6 @@
 # ADR-076: Entrada y errores del ciclo de vida
 
-Estado: propuesto en issue #79; pendiente de integración.
+Estado: aceptado mediante PR #80, merge a4bce65; CI aprobado.
 
 ## Contexto
 

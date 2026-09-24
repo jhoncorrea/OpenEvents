@@ -39,6 +39,8 @@ vi.mock("./api-operator-events", () => ({ listOperatorEvents: vi.fn(), getOperat
 import SessionControls from "./SessionControls";
 import { fetchApiIdentity } from "./api-auth";
 import { listApiEvents, getApiEvent, EventQueryError, type ApiEventPage } from "./api-event-queries";
+import { changeApiEventState } from "./api-event-lifecycle";
+vi.mock("./api-event-lifecycle", () => ({ changeApiEventState: vi.fn() }));
 import { editApiEvent } from "./api-event-edits";
 import { EventEditError } from "./event-edit-error";
 import type { ApiEvent } from "./api-event-queries";
@@ -544,6 +546,37 @@ const queriedEvent = {
   startsAt: "2027-08-27T14:00:00Z", endsAt: "2027-08-27T22:00:00Z", createdAt: "2026-09-19T12:00:00Z",
   timezone: "America/Lima", location: "Lugar consultado", version: 1, status: "draft" as const,
 };
+
+describe("SessionControls lifecycle", () => {
+  beforeEach(() => {
+    vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });
+    vi.mocked(getApiEvent).mockResolvedValue(queriedEvent);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+  async function activate() {
+    checkAccess(); fireEvent.click(await screen.findByText("Cargar eventos"));
+    fireEvent.click(await screen.findByLabelText("Ver detalle de Evento consultado"));
+    fireEvent.click(await screen.findByText("Activar evento"));
+    await waitFor(() => expect(changeApiEventState).toHaveBeenCalledTimes(1));
+  }
+  it("connects the current account and scope to the lifecycle client", async () => {
+    vi.mocked(changeApiEventState).mockResolvedValue({ ...queriedEvent, status: "active", version: 2 });
+    const view = setup(); await activate(); await screen.findByText("Evento activado correctamente.");
+    expect(changeApiEventState).toHaveBeenCalledExactlyOnceWith({ instance: view.instance, account,
+      apiScope: "api://44444444-4444-4444-8444-444444444444/access_as_user", apiUrl: "http://localhost:3001",
+      eventId: queriedEvent.id, action: "activate", input: { expectedVersion: 1 }, signal: expect.any(AbortSignal), isCurrent: expect.any(Function) });
+  });
+  it.each(["logout", "account", "interaction"])("aborts and ignores late transitions on %s", async mode => {
+    const request = deferred<ApiEvent>(); vi.mocked(changeApiEventState).mockReturnValue(request.promise);
+    const view = setup(); await activate(); const signal = vi.mocked(changeApiEventState).mock.calls[0][0].signal;
+    if (mode === "logout") { fireEvent.click(screen.getByText("Cerrar sesión")); await waitFor(() => expect(view.logoutRedirect).toHaveBeenCalled()); }
+    if (mode === "account") view.switchAccount({ ...account, homeAccountId: "different" });
+    if (mode === "interaction") view.setProgress(InteractionStatus.AcquireToken);
+    expect(signal?.aborted).toBe(true);
+    await act(async () => request.resolve({ ...queriedEvent, status: "active", version: 2 }));
+    expect(screen.queryByText("Evento activado correctamente.")).toBeNull();
+  });
+});
 
 describe("SessionControls event editing", () => {
   beforeEach(() => {

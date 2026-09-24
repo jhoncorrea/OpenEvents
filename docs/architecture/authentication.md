@@ -448,3 +448,7 @@ Activar/cerrar exige organizer global, tenantId/objectId válidos, usuario local
 ## Transporte HTTP del ciclo de vida (#79)
 
 POST activate/close exige Bearer y organizer global en onRequest antes del parser. El actor verificado se delega a las operaciones de #77, que comprueban usuario activo y asignación organizer al evento. 401 con Bearer, 403 para permisos y 404 para recursos inaccesibles; no-store también en errores. Sin privilegios implícitos ni aprovisionamiento. [Contrato HTTP](api-contract.md).
+
+## Sesión y ciclo de vida web (#81)
+
+SessionControls conecta las acciones del organizador con la cuenta MSAL y scope vigentes. El cliente comprueba la cuenta antes/después de esperar autorización; aborta y descarta resultados obsoletos. Los fallos de autenticación, interacción requerida o permisos invalidan el acceso visible mediante el recorrido existente. La API conserva la autorización efectiva por evento. No se guardan tokens en storage ni logs.
