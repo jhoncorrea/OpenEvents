@@ -1,6 +1,6 @@
 # ADR-078: Confirmación web del ciclo de vida
 
-Estado: propuesto en issue #81; pendiente de integración.
+Estado: aceptado e integrado mediante PR #82 (issue #81), merge dd6ddc9.
 
 ## Contexto
 

@@ -736,3 +736,7 @@ Se reutilizan sin cambios las operaciones de #77. No se añade transacción HTTP
 ## Consumo web del ciclo de vida (#81)
 
 Mis eventos consume POST activate/close tras confirmación explícita con expectedVersion del detalle vigente. Valida ID, estado destino y versión + 1 antes de mostrar éxito. Conflictos y resultados inciertos requieren una consulta posterior sin reenvío automático; una respuesta tardía de otra cuenta o vista se descarta. El contrato HTTP de #79 permanece intacto. Ver [ciclo de vida](event-lifecycle.md).
+
+## Consumidor web manual de check-in (#83)
+
+La vista del operador consume el POST existente con source manual, código sin normalizar y Bearer de la cuenta vigente. Distingue invalid/duplicate de EVENT_NOT_FOUND/CHECK_IN_NOT_ALLOWED, valida las respuestas y no reintenta automáticamente. Un resultado incierto se comunica como posible ingreso persistido. No cambia el contrato HTTP ni conecta el demo. Véase [check-in](check-in.md).

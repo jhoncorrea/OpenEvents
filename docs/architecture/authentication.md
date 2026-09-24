@@ -452,3 +452,7 @@ POST activate/close exige Bearer y organizer global en onRequest antes del parse
 ## Sesión y ciclo de vida web (#81)
 
 SessionControls conecta las acciones del organizador con la cuenta MSAL y scope vigentes. El cliente comprueba la cuenta antes/después de esperar autorización; aborta y descarta resultados obsoletos. Los fallos de autenticación, interacción requerida o permisos invalidan el acceso visible mediante el recorrido existente. La API conserva la autorización efectiva por evento. No se guardan tokens en storage ni logs.
+
+## Sesión del check-in manual web (#83)
+
+La sesión ofrece el formulario solo a checkin_operator en el recorrido de eventos asignados. El cliente usa cuenta/scope actuales y verifica vigencia tras MSAL y HTTP; desmontar o perder acceso aborta la espera y elimina la vista/código. Organizer/admin solos no acceden al recorrido. La autorización local por evento permanece en cada solicitud del servidor. Ni ocultar el formulario ni abortar una petición revierte un ingreso ya confirmado.

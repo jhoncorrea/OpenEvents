@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { registerApiCheckIn } from "./api-check-in";
+vi.mock("./api-check-in", () => ({ registerApiCheckIn: vi.fn() }));
 
 import {
   act,
@@ -904,6 +906,25 @@ describe("SessionControls operator integration", () => {
     checkAccess(); fireEvent.click(await screen.findByText("Cargar eventos asignados"));
     fireEvent.click(await screen.findByText("Seleccionar Asignado")); await screen.findByLabelText("Nombre o correo del inscrito");
   }
+  it("connects check-in to verified operator account and current scope", async () => {
+    vi.mocked(registerApiCheckIn).mockResolvedValue({ status: "invalid" });
+    const view = setup(); await open();
+    fireEvent.change(screen.getByLabelText("Código de la credencial"), { target: { value: "exact-secret " } });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar ingreso" }));
+    await screen.findByText("Código no válido para este evento.");
+    expect(registerApiCheckIn).toHaveBeenCalledWith(expect.objectContaining({ account, instance: view.instance, apiUrl: "http://localhost:3001", apiScope: expect.stringContaining("access_as_user"), eventId: assigned.id, code: "exact-secret ", signal: expect.any(AbortSignal), isCurrent: expect.any(Function) }));
+  });
+  it.each(["logout", "account", "interaction"])("aborts pending check-in on %s", async action => {
+    const pending = deferred<Awaited<ReturnType<typeof registerApiCheckIn>>>(); vi.mocked(registerApiCheckIn).mockReturnValue(pending.promise);
+    const view = setup(); await open(); fireEvent.change(screen.getByLabelText("Código de la credencial"), { target: { value: "secret" } }); fireEvent.click(screen.getByRole("button", { name: "Registrar ingreso" }));
+    await waitFor(() => expect(registerApiCheckIn).toHaveBeenCalled());
+    const options = vi.mocked(registerApiCheckIn).mock.calls[0][0];
+    if (action === "logout") fireEvent.click(screen.getByText("Cerrar sesión"));
+    if (action === "account") view.switchAccount({ ...account, homeAccountId: "different" });
+    if (action === "interaction") view.setProgress(InteractionStatus.AcquireToken);
+    expect(options.signal!.aborted).toBe(true); expect(options.isCurrent!()).toBe(false);
+    await act(async () => pending.resolve({ status: "invalid" })); expect(screen.queryByText("Código no válido para este evento.")).toBeNull();
+  });
   it("uses the verified account for both operator reads and the shared search", async () => {
     const view = setup(); expect(screen.queryByText("Cargar eventos asignados")).toBeNull(); await open();
     fireEvent.change(screen.getByLabelText("Nombre o correo del inscrito"), { target: { value: "Ana" } }); fireEvent.click(screen.getByText("Buscar inscripciones"));

@@ -1,3 +1,4 @@
+import { CheckInError } from "./check-in-error";
 import { EventLifecycleError } from "./event-lifecycle-error";
 import type { EventLifecycleAction } from "./api-event-lifecycle";
 import { CredentialError } from "./credential-error";
@@ -245,6 +246,18 @@ function AccountControls({
     let config;
     try { config = parseAuthConfig(import.meta.env); } catch { throw new EventQueryError("configuration"); }
     return { instance, account, apiScope: config.apiScope, apiUrl: import.meta.env.VITE_API_URL ?? "", signal, isCurrent: isCurrentAccount };
+  }
+  async function operatorCheckIn(eventId: string, code: string, signal: AbortSignal) {
+    const current = () => !signal.aborted && isCurrentAccount();
+    if (!current()) throw new CheckInError("cancelled");
+    if (!account || !canOperate || busy || operationLock.current) throw new CheckInError("unauthorized");
+    let config;
+    try { config = parseAuthConfig(import.meta.env); } catch { throw new CheckInError("configuration"); }
+    let client;
+    try { client = await import("./api-check-in"); } catch { throw new CheckInError("configuration"); }
+    if (!current()) throw new CheckInError("cancelled");
+    return client.registerApiCheckIn({ instance, account, apiScope: config.apiScope,
+      apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, code, signal, isCurrent: current });
   }
   async function operatorPage(cursor: string | undefined, signal: AbortSignal) {
     const options = operatorOptions(signal);
@@ -559,7 +572,7 @@ function AccountControls({
       {account && canOperate && !busy && (
         <Suspense fallback={<p role="status">Cargando eventos asignados…</p>}>
           <OperatorEvents accountKey={accountKey(account)} enabled={canOperate && !busy}
-            loadPage={operatorPage} loadDetail={operatorDetail} searchPage={operatorSearch}
+            submitCheckIn={operatorCheckIn} loadPage={operatorPage} loadDetail={operatorDetail} searchPage={operatorSearch}
             onAccessInvalidated={() => { if (isCurrentAccount()) invalidateAccess(); }} />
         </Suspense>
       )}
