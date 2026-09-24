@@ -732,3 +732,7 @@ Errores planos {code, message}, sin cuerpo/URL/query/Bearer/SQL/error original. 
 Se reutilizan sin cambios las operaciones de #77. No se añade transacción HTTP exterior ni reintento automático. Una confirmación perdida no demuestra rollback: consultar el evento antes de decidir otra acción. La repetición se rechaza por estado, no se convierte en éxito idempotente. PATCH no acepta status. Se conservan los bloqueos y auditoría, así como inscripciones, credenciales e ingresos existentes; ver [ciclo de vida](event-lifecycle.md).
 
 114 pruebas HTTP y 25 PostgreSQL nuevas. Las últimas usan conexión raíz y un observador independiente para verificar el commit antes del 200; fixtures sintéticos eliminados al terminar. Identidad simulada, no validación manual con Entra ni prueba de carga. 59 casos internos se ejecutan como regresión, incluida concurrencia. La web y la cámara permanecen pendientes; no cambia el demo ni el esquema.
+
+## Consumo web del ciclo de vida (#81)
+
+Mis eventos consume POST activate/close tras confirmación explícita con expectedVersion del detalle vigente. Valida ID, estado destino y versión + 1 antes de mostrar éxito. Conflictos y resultados inciertos requieren una consulta posterior sin reenvío automático; una respuesta tardía de otra cuenta o vista se descarta. El contrato HTTP de #79 permanece intacto. Ver [ciclo de vida](event-lifecycle.md).

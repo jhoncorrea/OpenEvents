@@ -1,6 +1,6 @@
 # ADR-075: Acciones HTTP del ciclo de vida
 
-Estado: propuesto en issue #79; pendiente de integración.
+Estado: aceptado mediante PR #80, merge a4bce65; CI aprobado.
 
 ## Contexto
 
