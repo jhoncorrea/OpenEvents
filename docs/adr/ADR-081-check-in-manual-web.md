@@ -1,6 +1,6 @@
 # ADR-081: Check-in manual web
 
-Estado: propuesto en issue #83; pendiente de integración.
+Estado: aceptado e integrado mediante PR #84 (issue #83), merge 1abee74.
 
 ## Contexto
 

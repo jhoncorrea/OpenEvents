@@ -740,3 +740,7 @@ Mis eventos consume POST activate/close tras confirmación explícita con expect
 ## Consumidor web manual de check-in (#83)
 
 La vista del operador consume el POST existente con source manual, código sin normalizar y Bearer de la cuenta vigente. Distingue invalid/duplicate de EVENT_NOT_FOUND/CHECK_IN_NOT_ALLOWED, valida las respuestas y no reintenta automáticamente. Un resultado incierto se comunica como posible ingreso persistido. No cambia el contrato HTTP ni conecta el demo. Véase [check-in](check-in.md).
+
+## Origen QR desde la cámara web (#85)
+
+El consumidor de POST /api/v1/events/:eventId/check-ins puede enviar source qr tras captura local confirmada o manual tras escribir/pegar/editar. El servidor ya acepta ambos; no cambia el endpoint. source no acredita criptográficamente el dispositivo. La web valida accepted contra el origen enviado y permite el origen histórico de duplicate. No reintenta automáticamente, tampoco después de una lectura de cámara.

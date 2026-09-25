@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { startQrCamera } from "./qr-camera";
+vi.mock("./qr-camera", async importOriginal => ({...await importOriginal<typeof import("./qr-camera")>(), startQrCamera: vi.fn()}));
 import { registerApiCheckIn } from "./api-check-in";
 vi.mock("./api-check-in", () => ({ registerApiCheckIn: vi.fn() }));
 
@@ -906,6 +908,22 @@ describe("SessionControls operator integration", () => {
     checkAccess(); fireEvent.click(await screen.findByText("Cargar eventos asignados"));
     fireEvent.click(await screen.findByText("Seleccionar Asignado")); await screen.findByLabelText("Nombre o correo del inscrito");
   }
+  it("forwards qr origin only after operator confirmation", async () => {
+    vi.mocked(startQrCamera).mockReturnValue(vi.fn()); vi.mocked(registerApiCheckIn).mockResolvedValue({status:"invalid"});
+    setup(); await open(); fireEvent.click(screen.getByText("Iniciar cámara"));
+    act(() => vi.mocked(startQrCamera).mock.calls.at(-1)![1]("oe1_"+"A".repeat(43)));
+    expect(registerApiCheckIn).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"Registrar ingreso"})); await screen.findByText("Código no válido para este evento.");
+    expect(registerApiCheckIn).toHaveBeenCalledWith(expect.objectContaining({account,eventId:assigned.id,source:"qr"}));
+  });
+  it.each(["logout","account","interaction","back"])("stops camera on %s",async action=>{
+    const stop=vi.fn();vi.mocked(startQrCamera).mockReturnValue(stop);const view=setup();await open();fireEvent.click(screen.getByText("Iniciar cámara"));
+    if(action==="logout")fireEvent.click(screen.getByText("Cerrar sesión"));
+    if(action==="account")view.switchAccount({...account,homeAccountId:"different"});
+    if(action==="interaction")view.setProgress(InteractionStatus.AcquireToken);
+    if(action==="back")fireEvent.click(screen.getByText("Volver a eventos asignados"));
+    expect(stop).toHaveBeenCalledOnce();expect(registerApiCheckIn).not.toHaveBeenCalled();
+  });
   it("connects check-in to verified operator account and current scope", async () => {
     vi.mocked(registerApiCheckIn).mockResolvedValue({ status: "invalid" });
     const view = setup(); await open();
