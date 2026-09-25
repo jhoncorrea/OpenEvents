@@ -5,7 +5,7 @@ import OperatorEvents from "./OperatorEvents";
 import { EventQueryError, type OperatorEvent } from "./api-operator-events";
 import { RegistrationQueryError, type RegistrationPage } from "./api-registration-queries";
 const event: OperatorEvent = { id: "a4444444-4444-4444-8444-444444444444", name: "Encuentro", startsAt: "2027-08-27T14:00:00.000Z", endsAt: "2027-08-27T22:00:00.000Z", timezone: "America/Lima", location: "Lima", status: "active" };
-const page: RegistrationPage = { items: [{ id: "r1", eventId: event.id, status: "confirmed", source: "manual", createdAt: "2026-09-21T12:00:00.000Z", attendee: { id: "a1", fullName: "Ana Pérez", email: "ana@example.com" } }], nextCursor: null };
+const page: RegistrationPage = { items: [{ id: "r1", eventId: event.id, status: "confirmed", source: "manual", createdAt: "2026-09-21T12:00:00.000Z", checkedInAt: null, attendee: { id: "a1", fullName: "Ana Pérez", email: "ana@example.com" } }], nextCursor: null };
 function pending<T>() { let resolve!: (v: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 function setup() {
   const props = { accountKey: "one", enabled: true, loadPage: vi.fn().mockResolvedValue({ items: [event], nextCursor: null }), loadDetail: vi.fn().mockResolvedValue(event), searchPage: vi.fn().mockResolvedValue(page), onAccessInvalidated: vi.fn() };
@@ -15,6 +15,16 @@ async function select() { fireEvent.click(screen.getByText("Cargar eventos asign
 function search(q = "Ana") { fireEvent.change(screen.getByLabelText("Nombre o correo del inscrito"), { target: { value: q } }); fireEvent.click(screen.getByText("Buscar inscripciones")); }
 afterEach(cleanup);
 describe("operator event and registration flow", () => {
+  it("repeat search loads persisted attendance and preserves cancelled registration status", async () => {
+    const { props } = setup(); await select(); search(); await screen.findByText("Pendiente de ingreso");
+    props.searchPage.mockResolvedValue({ items: [{ ...page.items[0], status: "cancelled", checkedInAt: "2026-09-25T19:52:00.000Z" }], nextCursor: null });
+    fireEvent.click(screen.getByText("Repetir búsqueda")); await screen.findByText("Ya ingresó");
+    expect(screen.getByText("Estado: Cancelada")).toBeTruthy(); expect(document.querySelector("time")?.textContent).toContain("14:52");
+    props.searchPage.mockRejectedValue(new RegistrationQueryError("unavailable"));
+    fireEvent.click(screen.getByText("Repetir búsqueda")); await screen.findByRole("alert");
+    expect(screen.queryByText("Ya ingresó")).toBeNull(); expect(screen.queryByText("Pendiente de ingreso")).toBeNull();
+  });
+
   it("requires explicit list and search, shows reduced detail and no organizer actions", async () => {
     const { props } = setup(); expect(props.loadPage).not.toHaveBeenCalled(); await select();
     expect(props.loadDetail).toHaveBeenCalledWith(event.id, expect.any(AbortSignal)); expect(props.searchPage).not.toHaveBeenCalled();

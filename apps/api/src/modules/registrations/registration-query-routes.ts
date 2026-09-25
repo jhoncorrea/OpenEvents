@@ -13,7 +13,7 @@ export interface RegistrationQueryOperations {
 
 function serialize(value: QueriedRegistration) {
   return { id: value.id, eventId: value.eventId, status: value.status, source: value.source,
-    createdAt: value.createdAt.toISOString(),
+    createdAt: value.createdAt.toISOString(), checkedInAt: value.checkedInAt === null ? null : value.checkedInAt.toISOString(),
     attendee: { id: value.attendee.id, fullName: value.attendee.fullName, email: value.attendee.email } };
 }
 

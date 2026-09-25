@@ -36,7 +36,7 @@ describe("staff registration search with PostgreSQL", () => {
     const owner = actor(); const event = await createEventForOrganizer(tx, eventInput(), owner);
     const saved = await registerAttendeeForOrganizer(tx, event.id,
       { fullName: "José Search", email: `match-${randomUUID()}@example.com` }, owner);
-    return { owner, event, saved };
+    return { owner, event, saved: { ...saved, checkedInAt: null as Date | null } };
   }
   it.each(["sEaRcH", "MATCH-", "  Search  ", "José"])("matches a partial name or email: %s", async q => {
     await isolated(async tx => {
@@ -75,7 +75,7 @@ describe("staff registration search with PostgreSQL", () => {
   });
   it("paginates matches only, isolates events and binds the cursor to the search", async () => {
     await isolated(async tx => {
-      const { owner, event, saved } = await fixture(tx); const expected = [saved];
+      const { owner, event, saved } = await fixture(tx); const expected: Omit<typeof saved, "checkedInAt">[] = [saved];
       for (let i = 0; i < 4; i++) expected.push(await registerAttendeeForOrganizer(tx, event.id,
         { fullName: `Search person ${i}`, email: `${randomUUID()}@example.com` }, owner));
       await registerAttendeeForOrganizer(tx, event.id, { fullName: "Excluded", email: `${randomUUID()}@example.com` }, owner);
@@ -85,7 +85,7 @@ describe("staff registration search with PostgreSQL", () => {
       const second = await search(tx, event.id, { q: "Search", limit: "2", cursor: first.nextCursor }, owner);
       const third = await search(tx, event.id, { q: "Search", limit: "2", cursor: second.nextCursor }, owner);
       expect([first.items.length, second.items.length, third.items.length]).toEqual([2, 2, 1]);
-      expect([...first.items, ...second.items, ...third.items]).toEqual(expected.sort((a, b) => a.id.localeCompare(b.id)));
+      expect([...first.items, ...second.items, ...third.items]).toEqual(expected.map(item => ({ ...item, checkedInAt: null })).sort((a, b) => a.id.localeCompare(b.id)));
       expect(third.nextCursor).toBeNull();
       await expect(search(tx, other.id, { q: "Search", cursor: first.nextCursor }, owner)).rejects.toBeInstanceOf(ZodError);
       await expect(search(tx, event.id, { q: "other", cursor: first.nextCursor }, owner)).rejects.toBeInstanceOf(ZodError);

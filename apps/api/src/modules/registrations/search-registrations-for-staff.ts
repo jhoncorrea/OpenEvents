@@ -2,7 +2,7 @@ import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { z } from "zod";
 import { AuthenticationError, AuthorizationError, requireAnyRole, type AuthenticatedUser } from "../../auth/verify-access-token.js";
-import { attendees, events, eventStaff, registrations, users } from "../../db/schema.js";
+import { attendees, checkIns, events, eventStaff, registrations, users } from "../../db/schema.js";
 import { EventNotFoundError } from "../events/query-events-for-organizer.js";
 import type { RegistrationPage } from "./query-registrations-for-organizer.js";
 import { parseRegistrationEventId } from "./registration-query-input.js";
@@ -37,9 +37,10 @@ export async function searchRegistrationsForStaff(db: NodePgDatabase, eventIdInp
     if (!event) throw new EventNotFoundError();
     const rows = await tx.select({
       id: registrations.id, eventId: registrations.eventId, status: registrations.status,
-      source: registrations.source, createdAt: registrations.createdAt,
+      source: registrations.source, createdAt: registrations.createdAt, checkedInAt: checkIns.checkedInAt,
       attendee: { id: attendees.id, fullName: attendees.fullName, email: attendees.email },
     }).from(registrations).innerJoin(attendees, eq(attendees.id, registrations.attendeeId))
+      .leftJoin(checkIns, eq(checkIns.registrationId, registrations.id))
       .where(and(eq(registrations.eventId, eventId),
         or(sql`${attendees.fullName} ilike ${pattern} escape '!'`, sql`${registrations.emailNormalized} ilike ${pattern} escape '!'`),
         afterId === undefined ? undefined : gt(registrations.id, afterId)))

@@ -8,7 +8,7 @@ import * as qr from "./credential-qr";
 import * as pngDownload from "./credential-qr-download";
 const id = "a4444444-4444-4444-8444-444444444444", reg = "b4444444-4444-4444-8444-444444444444";
 const event = { id, name: "Evento", timezone: "America/Lima", status: "active" as const };
-const registration = { id: reg, eventId: id, status: "confirmed" as const, source: "manual", createdAt: "2026-09-22T23:00:00.000Z", attendee: { id, fullName: "Ana", email: "test@example.invalid" } };
+const registration = { id: reg, eventId: id, status: "confirmed" as const, source: "manual", createdAt: "2026-09-22T23:00:00.000Z", checkedInAt: null, attendee: { id, fullName: "Ana", email: "test@example.invalid" } };
 const result = { id, eventId: id, registrationId: reg, status: "active" as const, issuedAt: registration.createdAt, token: "oe1_" + "A".repeat(43) };
 function setup() { return { accountKey: "a", enabled: true, event, loadPage: vi.fn().mockResolvedValue({ items: [registration], nextCursor: null }), loadDetail: vi.fn().mockResolvedValue(registration),
   issueCredential: vi.fn<IssueCredential>().mockResolvedValue(result), onCredentialSensitiveChange: vi.fn(), onBack: vi.fn(), onAccessInvalidated: vi.fn(), onUnavailable: vi.fn() }; }

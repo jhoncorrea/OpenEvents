@@ -273,7 +273,7 @@ describe("MyEvents registration integration", () => {
 
 describe("MyEvents registration queries", () => {
   const registration: QueriedRegistration = { id: "b4444444-4444-4444-8444-444444444444", eventId: event.id,
-    status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z",
+    status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z", checkedInAt: null,
     attendee: { id: "c4444444-4444-4444-8444-444444444444", fullName: "Persona consulta", email: "consulta@example.com" } };
   function queries() {
     return { ...setup(),

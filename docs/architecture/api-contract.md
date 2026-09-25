@@ -744,3 +744,7 @@ La vista del operador consume el POST existente con source manual, código sin n
 ## Origen QR desde la cámara web (#85)
 
 El consumidor de POST /api/v1/events/:eventId/check-ins puede enviar source qr tras captura local confirmada o manual tras escribir/pegar/editar. El servidor ya acepta ambos; no cambia el endpoint. source no acredita criptográficamente el dispositivo. La web valida accepted contra el origen enviado y permite el origen histórico de duplicate. No reintenta automáticamente, tampoco después de una lectura de cámara.
+
+## Asistencia en las consultas de inscripciones (#87)
+
+Listado, detalle y búsqueda incluyen checkedInAt obligatorio: string UTC canónico con milisegundos o null si no existe check_in. No altera status confirmed/cancelled ni el contrato POST de registro. Omisión o fecha mal formada es invalid_response en la web. Se mantienen permisos y paginación; no se expone performedBy. Véase [asistencia](registration-attendance.md).

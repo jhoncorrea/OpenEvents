@@ -2,7 +2,7 @@ import { type AccountInfo, type IPublicClientApplication, InteractionRequiredAut
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { searchApiRegistrations } from "./api-registration-queries";
 const id = "a4444444-4444-4444-8444-444444444444";
-const row = { id, eventId: id, status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z",
+const row = { id, eventId: id, status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z", checkedInAt: null,
   attendee: { id, fullName: "Persona", email: "persona@example.com" } };
 function setup(data: unknown = { items: [], nextCursor: null }) {
   const token = vi.fn().mockResolvedValue({ accessToken: "token" });
@@ -32,7 +32,7 @@ describe("registration search client", () => {
     const s = setup(); await expect(searchApiRegistrations({ ...s.options, cursor })).rejects.toMatchObject({ kind: "validation" });
   });
   it.each([null, { items: [{ ...row, eventId: "foreign" }], nextCursor: null }, { items: [row, row], nextCursor: null },
-    { items: [row], nextCursor: "=" }, { items: [], nextCursor: "next" }, { items: [{ ...row, createdAt: "bad" }], nextCursor: null }])("rejects malformed response %#", async data => {
+    { items: [row], nextCursor: "=" }, { items: [], nextCursor: "next" }, { items: [{ ...row, createdAt: "bad", checkedInAt: null }], nextCursor: null }])("rejects malformed response %#", async data => {
     const s = setup(data); await expect(searchApiRegistrations(s.options)).rejects.toMatchObject({ kind: "invalid_response" });
   });
   it.each([[400, "validation"], [401, "unauthorized"], [403, "forbidden"], [404, "not_found"], [500, "unavailable"]])("maps HTTP %s", async (status, kind) => {

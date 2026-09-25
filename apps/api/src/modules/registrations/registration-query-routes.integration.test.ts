@@ -64,8 +64,8 @@ describe("GET registrations with PostgreSQL", () => {
       const page = await app.inject({ url: listUrl(eventId), headers });
       const detail = await app.inject({ url: `${listUrl(eventId)}/${registration.json().id}`, headers });
       expect(page.statusCode).toBe(200); expect(detail.statusCode).toBe(200);
-      expect(page.json()).toEqual({ items: [registration.json()], nextCursor: null });
-      expect(detail.json()).toEqual(registration.json());
+      expect(page.json()).toEqual({ items: [{ ...registration.json(), checkedInAt: null }], nextCursor: null });
+      expect(detail.json()).toEqual({ ...registration.json(), checkedInAt: null });
       expect(page.headers["cache-control"]).toBe("no-store"); expect(detail.headers["cache-control"]).toBe("no-store");
       expect(detail.body).not.toContain("emailNormalized");
       expect(await tx.select().from(users).where(eq(users.externalSubject, subject(actor)))).toHaveLength(1);

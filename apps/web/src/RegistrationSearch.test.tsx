@@ -6,7 +6,7 @@ import { RegistrationQueryError, type QueriedRegistration, type RegistrationPage
 
 const event = { id: "a4444444-4444-4444-8444-444444444444", name: "Evento de prueba", timezone: "America/Lima" };
 const registration: QueriedRegistration = { id: "b4444444-4444-4444-8444-444444444444", eventId: event.id,
-  status: "confirmed", source: "manual", createdAt: "2026-09-20T15:00:00.000Z",
+  status: "confirmed", source: "manual", createdAt: "2026-09-20T15:00:00.000Z", checkedInAt: null,
   attendee: { id: "c4444444-4444-4444-8444-444444444444", fullName: "Ana Prueba", email: "ana@example.com" } };
 const other: QueriedRegistration = { ...registration, id: "d4444444-4444-4444-8444-444444444444", status: "cancelled",
   attendee: { ...registration.attendee, fullName: "Luis Prueba", email: "luis@example.com" } };
