@@ -5,7 +5,7 @@ export type CheckInResult = { status: "invalid" } | { status: "accepted" | "dupl
   id: string; registrationId: string; checkedInAt: string; source: "manual" | "qr";
 } };
 export interface CheckInOptions extends EventQueryOptions {
-  eventId: string; code: string; isCurrent?: () => boolean;
+  eventId: string; code: string; source?: "manual" | "qr"; isCurrent?: () => boolean;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function record(value: unknown): value is Record<string, unknown> {
@@ -26,7 +26,9 @@ export async function registerApiCheckIn(options: CheckInOptions): Promise<Check
   url.pathname += `/${id}/check-ins`;
   if (typeof options.code !== "string" || options.code.length < 1 || options.code.length > 256) throw new CheckInError("validation");
   // Capturar el secreto exacto antes de esperar el token; nunca normalizarlo.
-  const body = JSON.stringify({ code: options.code, source: "manual" });
+  const source = options.source === undefined ? "manual" : options.source;
+  if (source !== "manual" && source !== "qr") throw new CheckInError("validation");
+  const body = JSON.stringify({ code: options.code, source });
   let token: string;
   try {
     token = (await options.instance.acquireTokenSilent({ account: options.account, scopes: [options.apiScope] })).accessToken;
@@ -66,7 +68,7 @@ export async function registerApiCheckIn(options: CheckInOptions): Promise<Check
         typeof saved.registrationId !== "string" || !uuid.test(saved.registrationId) ||
         typeof saved.checkedInAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(saved.checkedInAt) ||
         !Number.isFinite(Date.parse(saved.checkedInAt)) || new Date(saved.checkedInAt).toISOString() !== saved.checkedInAt ||
-        (saved.source !== "manual" && saved.source !== "qr") || (status === "accepted" && saved.source !== "manual")) throw new CheckInError("uncertain");
+        (saved.source !== "manual" && saved.source !== "qr") || (status === "accepted" && saved.source !== source)) throw new CheckInError("uncertain");
     return { status, checkIn: { id: saved.id, registrationId: saved.registrationId, checkedInAt: saved.checkedInAt, source: saved.source } };
   } catch (error) {
     checkCancelled();

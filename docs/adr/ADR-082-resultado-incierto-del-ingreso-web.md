@@ -1,6 +1,6 @@
 # ADR-082: Resultado incierto del ingreso web
 
-Estado: propuesto en issue #83; pendiente de integración.
+Estado: aceptado e integrado mediante PR #84 (issue #83), merge 1abee74.
 
 ## Contexto
 

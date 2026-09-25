@@ -247,7 +247,7 @@ function AccountControls({
     try { config = parseAuthConfig(import.meta.env); } catch { throw new EventQueryError("configuration"); }
     return { instance, account, apiScope: config.apiScope, apiUrl: import.meta.env.VITE_API_URL ?? "", signal, isCurrent: isCurrentAccount };
   }
-  async function operatorCheckIn(eventId: string, code: string, signal: AbortSignal) {
+  async function operatorCheckIn(eventId: string, code: string, signal: AbortSignal, source: "manual" | "qr" = "manual") {
     const current = () => !signal.aborted && isCurrentAccount();
     if (!current()) throw new CheckInError("cancelled");
     if (!account || !canOperate || busy || operationLock.current) throw new CheckInError("unauthorized");
@@ -257,7 +257,7 @@ function AccountControls({
     try { client = await import("./api-check-in"); } catch { throw new CheckInError("configuration"); }
     if (!current()) throw new CheckInError("cancelled");
     return client.registerApiCheckIn({ instance, account, apiScope: config.apiScope,
-      apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, code, signal, isCurrent: current });
+      apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, code, source, signal, isCurrent: current });
   }
   async function operatorPage(cursor: string | undefined, signal: AbortSignal) {
     const options = operatorOptions(signal);

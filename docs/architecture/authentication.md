@@ -456,3 +456,7 @@ SessionControls conecta las acciones del organizador con la cuenta MSAL y scope 
 ## Sesión del check-in manual web (#83)
 
 La sesión ofrece el formulario solo a checkin_operator en el recorrido de eventos asignados. El cliente usa cuenta/scope actuales y verifica vigencia tras MSAL y HTTP; desmontar o perder acceso aborta la espera y elimina la vista/código. Organizer/admin solos no acceden al recorrido. La autorización local por evento permanece en cada solicitud del servidor. Ni ocultar el formulario ni abortar una petición revierte un ingreso ya confirmado.
+
+## Cámara y sesión (#85)
+
+La cámara vive dentro del detalle activo asignado al operador. Salir, perder acceso, cambiar cuenta o iniciar una interacción de sesión desmonta la vista y detiene los tracks. Un stream de permisos tardío también se detiene. Las lecturas locales no autorizan ingresos: Registrar ingreso usa MSAL y las comprobaciones locales del servidor existentes. Se conserva la alternativa manual sin solicitar cámara al cargar la vista.
