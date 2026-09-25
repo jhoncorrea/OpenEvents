@@ -1,6 +1,6 @@
 # ADR-084: Lectura local con jsQR
 
-Estado: propuesto en issue #85; pendiente de integración.
+Estado: aceptado e integrado mediante PR #86 (issue #85), merge 1c9afd5.
 
 ## Contexto
 

@@ -35,7 +35,7 @@ describe("registration queries with PostgreSQL", () => {
     const owner = actor(); const event = await createEventForOrganizer(tx, eventInput(), owner);
     const saved = await registerAttendeeForOrganizer(tx, event.id,
       { fullName: "Query attendee", email: `query-${randomUUID()}@example.com` }, owner);
-    return { owner, event, saved };
+    return { owner, event, saved: { ...saved, checkedInAt: null as Date | null } };
   }
   it.each(["draft", "active", "closed", "cancelled"] as const)("reads in %s without changing persisted rows", async status => {
     await isolated(async tx => {
@@ -58,7 +58,7 @@ describe("registration queries with PostgreSQL", () => {
   });
   it("paginates by UUID without duplicates or rows from another event", async () => {
     await isolated(async tx => {
-      const { owner, event, saved } = await fixture(tx); const all = [saved];
+      const { owner, event, saved } = await fixture(tx); const all: Omit<typeof saved, "checkedInAt">[] = [saved];
       for (let i = 0; i < 4; i++) all.push(await registerAttendeeForOrganizer(tx, event.id,
         { fullName: `Person ${i}`, email: `${randomUUID()}@example.com` }, owner));
       const other = await createEventForOrganizer(tx, eventInput(), owner);
@@ -67,7 +67,7 @@ describe("registration queries with PostgreSQL", () => {
       const second = await listRegistrationsForOrganizer(tx, event.id, { limit: "2", cursor: first.nextCursor }, owner);
       const third = await listRegistrationsForOrganizer(tx, event.id, { limit: "2", cursor: second.nextCursor }, owner);
       expect(first.items).toHaveLength(2); expect(second.items).toHaveLength(2); expect(third.items).toHaveLength(1);
-      expect([...first.items, ...second.items, ...third.items]).toEqual(all.sort((a, b) => a.id.localeCompare(b.id)));
+      expect([...first.items, ...second.items, ...third.items]).toEqual(all.map(item => ({ ...item, checkedInAt: null })).sort((a, b) => a.id.localeCompare(b.id)));
       expect(third.nextCursor).toBeNull();
     });
   });

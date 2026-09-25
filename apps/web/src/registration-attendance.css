@@ -1,0 +1,5 @@
+.registration-attendance { margin-block: .75rem; }
+.registration-attendance-badge { display: inline-block; padding: .3rem .65rem; border-radius: 1rem; font-weight: 600; }
+.attendance-pending { color: #51400b; background: #fff1c2; }
+.attendance-entered { color: #173f35; background: #d9eedf; }
+.registration-attendance p { margin-block: .5rem; }

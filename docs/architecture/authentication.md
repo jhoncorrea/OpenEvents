@@ -460,3 +460,7 @@ La sesión ofrece el formulario solo a checkin_operator en el recorrido de event
 ## Cámara y sesión (#85)
 
 La cámara vive dentro del detalle activo asignado al operador. Salir, perder acceso, cambiar cuenta o iniciar una interacción de sesión desmonta la vista y detiene los tracks. Un stream de permisos tardío también se detiene. Las lecturas locales no autorizan ingresos: Registrar ingreso usa MSAL y las comprobaciones locales del servidor existentes. Se conserva la alternativa manual sin solicitar cámara al cargar la vista.
+
+## Estado de asistencia en lecturas (#87)
+
+La fecha se incluye únicamente en las consultas de inscripciones ya autorizadas. El listado y detalle requieren organizador asignado; búsqueda admite organizador u operador con rol y asignación compatibles. Un ingreso en otro evento no concede visibilidad y no se expone la identidad de quien lo realizó. Se conservan controles de sesión y descarte de respuestas tardías de la web.

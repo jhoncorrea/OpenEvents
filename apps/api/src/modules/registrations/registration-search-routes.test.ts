@@ -7,7 +7,7 @@ const id = "a3333333-3333-4333-8333-333333333333";
 const actor: AuthenticatedUser = { tenantId: id, objectId: id, subject: "verified", roles: ["organizer"] };
 const url = `/api/v1/events/${id}/registrations/search`;
 const headers = { authorization: "Bearer sensitive-token" };
-const item = { id, eventId: id, status: "confirmed" as const, source: "manual", createdAt: new Date("2026-09-21T14:00:00Z"),
+const item = { id, eventId: id, status: "confirmed" as const, source: "manual", createdAt: new Date("2026-09-21T14:00:00Z"), checkedInAt: null,
   attendee: { id, fullName: "Private Name", email: "private@example.com" } };
 describe("registration search HTTP", () => {
   let app: ReturnType<typeof buildApp>; let search: ReturnType<typeof vi.fn<RegistrationSearchOperation>>; let verify: ReturnType<typeof vi.fn>;
@@ -25,6 +25,15 @@ describe("registration search HTTP", () => {
     expect(search).toHaveBeenCalledExactlyOnceWith(id, { q: "Private", limit: "1" }, user);
     expect(r.json()).toEqual({ items: [JSON.parse(JSON.stringify(item))], nextCursor: null });
   });
+  it.each(["organizer", "checkin_operator"])("serializes attendance for %s without disclosing the operator", async role => {
+    verify.mockResolvedValue({ ...actor, roles: [role] });
+    const checkedInAt = new Date("2026-09-25T19:52:00.000Z");
+    search.mockResolvedValue({ items: [{ ...item, checkedInAt, ...{ performedBy: "private-operator" } }], nextCursor: null });
+    const response = await app.inject({ url: url + "?q=Private", headers });
+    expect(response.statusCode).toBe(200); expect(response.json().items[0].checkedInAt).toBe(checkedInAt.toISOString());
+    expect(response.body).not.toContain("private-operator");
+  });
+
   it("projects fields and handles empty matches", async () => {
     search.mockResolvedValueOnce({ items: [{ ...item, ...{ secret: "hidden" }, attendee: { ...item.attendee, ...{ secret: "hidden" } } }], nextCursor: "next" });
     const r = await app.inject({ url: url + "?q=Private", headers });

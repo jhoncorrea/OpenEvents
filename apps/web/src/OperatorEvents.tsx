@@ -1,3 +1,4 @@
+import RegistrationAttendance from "./RegistrationAttendance";
 import OperatorCheckIn, { type SubmitCheckIn } from "./OperatorCheckIn";
 import { CheckInError } from "./check-in-error";
 import { useEffect, useId, useRef, useState } from "react";
@@ -113,7 +114,7 @@ function Browser({ submitCheckIn, loadPage, loadDetail, searchPage, onAccessInva
         <button type="button" onClick={() => { cancel(); resetSearch(); setError(""); }}>Limpiar búsqueda</button>
       </form>
       {term && <><p>Resultados para: <strong>{term}</strong></p><button type="button" disabled={busy} onClick={() => search(false, true)}>Repetir búsqueda</button></>}
-      {results.items.length > 0 && <><p>Incluye inscripciones canceladas. El listado no está ordenado por fecha.</p><ul>{results.items.map(item => <li key={item.id}><strong>{item.attendee.fullName}</strong><p>{item.attendee.email}</p><p>Estado: {item.status === "confirmed" ? "Confirmada" : "Cancelada"}</p></li>)}</ul></>}
+      {results.items.length > 0 && <><p>Incluye inscripciones canceladas. El listado no está ordenado por fecha. Después de registrar un ingreso, pulsa Repetir búsqueda para actualizar la asistencia.</p><ul>{results.items.map(item => <li key={item.id}><strong>{item.attendee.fullName}</strong><p>{item.attendee.email}</p><p>Estado: {item.status === "confirmed" ? "Confirmada" : "Cancelada"}</p><RegistrationAttendance checkedInAt={item.checkedInAt} timezone={event.timezone} /></li>)}</ul></>}
       {searched && !busy && <p role="status">{results.items.length ? `${results.items.length} inscripciones cargadas.` : "No se encontraron coincidencias."}</p>}
       {results.nextCursor && <button type="button" disabled={busy} onClick={() => search(true)}>Cargar más coincidencias</button>}
     </>)}

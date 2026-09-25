@@ -6,7 +6,7 @@ import { RegistrationQueryError, type QueriedRegistration, type RegistrationPage
 
 const event = { id: "a4444444-4444-4444-8444-444444444444", name: "Evento de prueba", timezone: "America/Lima" };
 const registration: QueriedRegistration = { id: "b4444444-4444-4444-8444-444444444444", eventId: event.id,
-  status: "confirmed", source: "manual", createdAt: "2026-09-20T15:00:00.000Z",
+  status: "confirmed", source: "manual", createdAt: "2026-09-20T15:00:00.000Z", checkedInAt: null,
   attendee: { id: "c4444444-4444-4444-8444-444444444444", fullName: "Ana Prueba", email: "ana@example.com" } };
 const other: QueriedRegistration = { ...registration, id: "d4444444-4444-4444-8444-444444444444", status: "cancelled",
   attendee: { ...registration.attendee, fullName: "Luis Prueba", email: "luis@example.com" } };
@@ -25,6 +25,23 @@ function open() { fireEvent.click(screen.getByRole("button", { name: "Ver inscri
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("RegistrationBrowser", () => {
+  it.each(["confirmed", "cancelled"] as const)("shows attendance independently of %s and refreshes from detail", async status => {
+    const props = setup(); props.loadPage.mockResolvedValue({ items: [{ ...registration, status }], nextCursor: null });
+    props.loadDetail.mockResolvedValue({ ...registration, status, checkedInAt: "2026-09-25T19:52:00.000Z" });
+    render(<RegistrationBrowser {...props} />); await load(); expect(screen.getByText("Pendiente de ingreso")).toBeTruthy();
+    open(); await screen.findByText("Ya ingresó");
+    expect(screen.getByText(status === "confirmed" ? "Confirmada" : "Cancelada")).toBeTruthy();
+    expect(document.querySelector("time")?.getAttribute("datetime")).toBe("2026-09-25T19:52:00.000Z");
+    expect(document.querySelector("time")?.textContent).toContain("14:52");
+    fireEvent.click(screen.getByText("Volver a inscripciones")); expect(screen.getByText("Ya ingresó")).toBeTruthy();
+  });
+  it("refresh failure removes old attendance instead of inventing a pending result", async () => {
+    const props = setup(); props.loadPage.mockResolvedValueOnce({ items: [{ ...registration, checkedInAt: "2026-09-25T19:52:00.000Z" }], nextCursor: null }).mockRejectedValueOnce(new RegistrationQueryError("unavailable"));
+    render(<RegistrationBrowser {...props} />); await load(); expect(screen.getByText("Ya ingresó")).toBeTruthy();
+    fireEvent.click(screen.getByText("Actualizar inscripciones")); await screen.findByRole("alert");
+    expect(screen.queryByText("Ya ingresó")).toBeNull(); expect(screen.queryByText("Pendiente de ingreso")).toBeNull();
+  });
+
   it("does not query or display data when disabled", () => {
     const props = setup(); render(<RegistrationBrowser {...props} enabled={false} />);
     expect(screen.queryByRole("region")).toBeNull(); expect(props.loadPage).not.toHaveBeenCalled();

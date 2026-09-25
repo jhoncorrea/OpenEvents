@@ -812,8 +812,8 @@ describe("SessionControls attendee registration", () => {
 });
 
 describe("SessionControls registration queries", () => {
-  const registration: ApiRegistration = { id: "b4444444-4444-4444-8444-444444444444", eventId: queriedEvent.id,
-    status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z",
+  const registration: ApiRegistration & { checkedInAt: string | null } = { id: "b4444444-4444-4444-8444-444444444444", eventId: queriedEvent.id,
+    status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z", checkedInAt: null,
     attendee: { id: "c4444444-4444-4444-8444-444444444444", fullName: "Persona consulta", email: "consulta@example.com" } };
   beforeEach(() => {
     vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });
@@ -874,7 +874,7 @@ describe("SessionControls registration queries", () => {
     expect(screen.queryByText("consulta@example.com")).toBeNull();
   });
   it("aborts registration detail on account change", async () => {
-    const request = deferred<ApiRegistration>(); vi.mocked(getApiRegistration).mockReturnValue(request.promise);
+    const request = deferred<ApiRegistration & { checkedInAt: string | null }>(); vi.mocked(getApiRegistration).mockReturnValue(request.promise);
     const view = setup(); await browse(); await screen.findByText("Persona consulta");
     fireEvent.click(screen.getByText("Ver inscripción")); await waitFor(() => expect(getApiRegistration).toHaveBeenCalledTimes(1));
     const signal = vi.mocked(getApiRegistration).mock.calls[0][0].signal;
@@ -971,8 +971,8 @@ describe("SessionControls operator integration", () => {
 
 
 describe("SessionControls credential integration", () => {
-  const registration: ApiRegistration = { id: "b4444444-4444-4444-8444-444444444444", eventId: queriedEvent.id,
-    status: "confirmed", source: "manual", createdAt: "2026-09-22T23:00:00.000Z", attendee: { id: queriedEvent.id, fullName: "Persona credencial", email: "credential@example.invalid" } };
+  const registration: ApiRegistration & { checkedInAt: string | null } = { id: "b4444444-4444-4444-8444-444444444444", eventId: queriedEvent.id,
+    status: "confirmed", source: "manual", createdAt: "2026-09-22T23:00:00.000Z", checkedInAt: null, attendee: { id: queriedEvent.id, fullName: "Persona credencial", email: "credential@example.invalid" } };
   const issued: IssuedCredential = { id: queriedEvent.id, eventId: queriedEvent.id, registrationId: registration.id, status: "active", issuedAt: registration.createdAt, token: "oe1_" + "A".repeat(43) };
   beforeEach(() => {
     vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });

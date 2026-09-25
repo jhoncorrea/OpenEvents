@@ -1,3 +1,4 @@
+import RegistrationAttendance from "./RegistrationAttendance";
 import RegistrationCredential, { type IssueCredential } from "./RegistrationCredential";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { normalizeRegistrationSearch, RegistrationQueryError, type QueriedRegistration, type RegistrationPage } from "./api-registration-queries";
@@ -165,6 +166,7 @@ function Browser({ issueCredential, onCredentialSensitiveChange, event, loadPage
         <ul className="registration-browser-list">{items.map(item => <li key={item.id}>
           <h4>{item.attendee.fullName}</h4><p>{item.attendee.email}</p>
           <p><strong>Estado:</strong> {item.status === "confirmed" ? "Confirmada" : "Cancelada"}</p>
+          <RegistrationAttendance checkedInAt={item.checkedInAt} timezone={event.timezone} />
           <button type="button" disabled={busy} aria-label={`Ver inscripción de ${item.attendee.fullName}`}
             ref={node => { if (node) buttons.current.set(item.id, node); else buttons.current.delete(item.id); }}
             onClick={() => void open(item.id)}>Ver inscripción</button>
@@ -182,6 +184,7 @@ function Browser({ issueCredential, onCredentialSensitiveChange, event, loadPage
         <dt>Nombre</dt><dd>{detail.attendee.fullName}</dd>
         <dt>Correo</dt><dd>{detail.attendee.email}</dd>
         <dt>Estado</dt><dd>{detail.status === "confirmed" ? "Confirmada" : "Cancelada"}</dd>
+        <dt>Ingreso</dt><dd><RegistrationAttendance checkedInAt={detail.checkedInAt} timezone={event.timezone} /></dd>
         <dt>Origen</dt><dd>{detail.source === "manual" ? "Registro manual" : detail.source}</dd>
         <dt>Fecha de inscripción</dt><dd>{createdAt(detail.createdAt)} ({event.timezone})</dd>
         <dt>Identificador</dt><dd>{detail.id}</dd>

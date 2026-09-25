@@ -4,7 +4,7 @@ import { getApiRegistration, listApiRegistrations } from "./api-registration-que
 
 const eventId = "a4444444-4444-4444-8444-444444444444";
 const registration = { id: "b4444444-4444-4444-8444-444444444444", eventId,
-  status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z",
+  status: "confirmed", source: "manual", createdAt: "2026-09-20T12:00:00.000Z", checkedInAt: null,
   attendee: { id: "c4444444-4444-4444-8444-444444444444", fullName: "Asistente de prueba", email: "test@example.com" } };
 function setup() {
   const acquireTokenSilent = vi.fn().mockResolvedValue({ accessToken: "test-token" });
@@ -20,6 +20,16 @@ describe("registration query client", () => {
   beforeEach(() => { fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock); });
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
   function respond(data: unknown, status = 200) { fetchMock.mockResolvedValue(new Response(JSON.stringify(data), { status })); }
+  it.each([null, "2026-09-25T19:52:00.000Z"])("reads checkedInAt %s in list and detail", async checkedInAt => {
+    const value = { ...registration, checkedInAt };
+    respond(value); expect((await getApiRegistration({ ...setup().options, registrationId: value.id })).checkedInAt).toBe(checkedInAt);
+    respond({ items: [value], nextCursor: null }); expect((await listApiRegistrations(setup().options)).items[0].checkedInAt).toBe(checkedInAt);
+  });
+  it.each([undefined, "", "invalid", 0, {}, "2026-02-30T19:52:00.000Z", "2026-09-25T14:52:00-05:00"])("never interprets invalid attendance %s as pending", async checkedInAt => {
+    respond({ ...registration, checkedInAt });
+    await expect(getApiRegistration({ ...setup().options, registrationId: registration.id })).rejects.toMatchObject({ kind: "invalid_response" });
+  });
+
   it("uses the selected account, event, cursor and safe read options", async () => {
     const client = setup(); respond({ items: [registration], nextCursor: "next" });
     expect(await listApiRegistrations({ ...client.options, limit: 1, cursor: "previous" }))
@@ -80,7 +90,7 @@ describe("registration query client", () => {
   });
   it.each([
     { eventId: "d4444444-4444-4444-8444-444444444444" }, { id: "bad" }, { status: "unknown" },
-    { source: "" }, { source: 1 }, { createdAt: "2026-02-30T12:00:00.000Z" }, { createdAt: "2026-09-20T12:00:00-05:00" },
+    { source: "" }, { source: 1 }, { createdAt: "2026-02-30T12:00:00.000Z", checkedInAt: null }, { createdAt: "2026-09-20T12:00:00-05:00", checkedInAt: null },
     { attendee: null }, { attendee: { ...registration.attendee, id: "bad" } },
     { attendee: { ...registration.attendee, fullName: " " } },
     { attendee: { ...registration.attendee, fullName: "a".repeat(201) } },

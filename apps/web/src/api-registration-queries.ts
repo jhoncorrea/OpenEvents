@@ -4,7 +4,7 @@ import { RegistrationQueryError, type RegistrationQueryErrorKind } from "./regis
 export { RegistrationQueryError } from "./registration-query-error";
 
 export interface QueriedRegistration {
-  id: string; eventId: string; status: "confirmed" | "cancelled"; source: string; createdAt: string;
+  id: string; eventId: string; status: "confirmed" | "cancelled"; source: string; createdAt: string; checkedInAt: string | null;
   attendee: { id: string; fullName: string; email: string };
 }
 export interface RegistrationPage { items: QueriedRegistration[]; nextCursor: string | null }
@@ -26,12 +26,12 @@ function parseRegistration(value: unknown, eventId: string): QueriedRegistration
   if (!record(value) || typeof value.id !== "string" || !uuid.test(value.id) ||
       typeof value.eventId !== "string" || value.eventId.toLowerCase() !== eventId ||
       (value.status !== "confirmed" && value.status !== "cancelled") || !text(value.source) ||
-      !utc(value.createdAt) || !record(value.attendee) ||
+      !utc(value.createdAt) || !(value.checkedInAt === null || utc(value.checkedInAt)) || !record(value.attendee) ||
       typeof value.attendee.id !== "string" || !uuid.test(value.attendee.id) ||
       !text(value.attendee.fullName) || value.attendee.fullName.length > 200 ||
       !text(value.attendee.email) || value.attendee.email.length > 254 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.attendee.email)) throw new RegistrationQueryError("invalid_response");
-  return { id: value.id.toLowerCase(), eventId, status: value.status, source: value.source, createdAt: value.createdAt,
+  return { id: value.id.toLowerCase(), eventId, status: value.status, source: value.source, createdAt: value.createdAt, checkedInAt: value.checkedInAt,
     attendee: { id: value.attendee.id.toLowerCase(), fullName: value.attendee.fullName, email: value.attendee.email } };
 }
 function baseUrl(options: RegistrationQueryOptions): URL {

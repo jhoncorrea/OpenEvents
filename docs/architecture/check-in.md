@@ -75,3 +75,7 @@ Pruebas automatizadas nuevas: 42 cliente, 20 vista y 4 sesión; suite web comple
 ## Captura con cámara (#85)
 
 El recorrido manual de #83 se integró mediante PR #84, merge 1abee74, con CI verde y limpieza local confirmada. Iniciar cámara solicita vídeo; una lectura detiene la captura y deja el código listo para Registrar ingreso. No existe envío automático. El cliente acepta source manual/qr y exige que accepted coincida con el origen enviado; duplicate conserva el original. Editar el código leído cambia a manual. No cambia el contrato HTTP. Véase [cámara QR](qr-camera.md).
+
+## Consulta del ingreso en inscripciones (#87)
+
+El ingreso persistido se muestra como Ya ingresó y su fecha original, separado del estado de inscripción. Un duplicado no modifica esa fecha. La búsqueda del operador se actualiza con Repetir búsqueda; el organizador actualiza su listado o vuelve a consultar el detalle. No se registra un ingreso desde esas consultas ni se cambian las reglas de acceso. Véase [asistencia](registration-attendance.md).

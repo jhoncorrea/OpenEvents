@@ -11,7 +11,7 @@ const actor: AuthenticatedUser = { tenantId: "a2222222-2222-4222-8222-2222222222
   objectId: "b1111111-1111-4111-8111-111111111111", subject: "test", roles: ["organizer"] };
 const registration: QueriedRegistration = { id: "b4444444-4444-4444-8444-444444444444",
   eventId: "a3333333-3333-4333-8333-333333333333", status: "confirmed", source: "manual",
-  createdAt: new Date("2026-09-20T12:00:00Z"),
+  createdAt: new Date("2026-09-20T12:00:00Z"), checkedInAt: null,
   attendee: { id: "c5555555-5555-4555-8555-555555555555", fullName: "Test attendee", email: "test@example.com" } };
 const headers = { authorization: "Bearer test-token" };
 const base = `/api/v1/events/${registration.eventId}/registrations`;
@@ -30,6 +30,19 @@ describe("registration query HTTP routes", () => {
     app = buildApp({ verifyAccessToken: verify, createEvent: vi.fn(), registrationQueries: { list, get } });
   });
   afterEach(async () => { await app.close(); vi.restoreAllMocks(); });
+  it.each(["confirmed", "cancelled"] as const)("serializes persisted attendance for %s without internal fields", async status => {
+    const checkedInAt = new Date("2026-09-25T19:52:00.000Z");
+    const value = { ...registration, status, checkedInAt, performedBy: "private-operator" };
+    list.mockResolvedValue({ items: [value], nextCursor: null }); get.mockResolvedValue(value);
+    for (const url of [base, detail]) {
+      const response = await app.inject({ url, headers });
+      expect(response.statusCode).toBe(200);
+      const item = url === base ? response.json().items[0] : response.json();
+      expect(item.checkedInAt).toBe(checkedInAt.toISOString()); expect(item.status).toBe(status);
+      expect(response.body).not.toContain("private-operator");
+    }
+  });
+
   it("returns a page and passes only the verified actor, normalized event and validated query", async () => {
     const cursor = encodeRegistrationCursor(registration.eventId, registration.id);
     list.mockResolvedValue({ items: [registration], nextCursor: cursor });

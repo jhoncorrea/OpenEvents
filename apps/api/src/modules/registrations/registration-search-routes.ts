@@ -40,7 +40,7 @@ export function registerRegistrationSearchRoutes(app: FastifyInstance, verify: A
     const page = await search(eventId, request.query, actor);
     return reply.code(200).send({ items: page.items.map(item => ({
       id: item.id, eventId: item.eventId, status: item.status, source: item.source,
-      createdAt: item.createdAt.toISOString(),
+      createdAt: item.createdAt.toISOString(), checkedInAt: item.checkedInAt === null ? null : item.checkedInAt.toISOString(),
       attendee: { id: item.attendee.id, fullName: item.attendee.fullName, email: item.attendee.email },
     })), nextCursor: page.nextCursor });
   });
