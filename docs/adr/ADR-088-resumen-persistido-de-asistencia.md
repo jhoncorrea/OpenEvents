@@ -1,6 +1,6 @@
 # ADR-088: Resumen persistido de asistencia por evento
 
-Estado: propuesto en issue #89; pendiente de integración.
+Estado: aceptado e integrado mediante PR #90, merge aaa8c7e.
 
 ## Contexto
 

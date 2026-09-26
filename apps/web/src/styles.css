@@ -38,7 +38,12 @@ h2 { font-size: 1.25rem; }
 .event-meta { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .event-meta span { display: flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #dce3de; border-radius: 999px; background: #fff; color: #52635c; font-size: .86rem; }
 
-.stats-grid { margin-top: 34px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.stats-grid { margin-top: 34px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.attendance-summary { margin-block: 1.5rem; }
+.attendance-summary .stat-card { overflow-wrap: anywhere; }
+@media (max-width: 650px) {
+  .attendance-summary .stats-grid { grid-template-columns: 1fr; }
+}
 .stat-card { padding: 22px; border: 1px solid #dce3de; border-radius: 14px; background: #fff; position: relative; overflow: hidden; }
 .stat-card span, .stat-card small { display: block; color: #65766f; }
 .stat-card span { font-size: .85rem; font-weight: 600; }

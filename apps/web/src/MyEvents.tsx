@@ -1,3 +1,4 @@
+import AttendanceSummary, { type LoadAttendanceSummary } from "./AttendanceSummary";
 import { EventLifecycleError } from "./event-lifecycle-error";
 import type { EventLifecycleAction } from "./api-event-lifecycle";
 import RegistrationCsvForm, { type RegistrationCsvFormProps } from "./RegistrationCsvForm";
@@ -32,6 +33,7 @@ const EditEventForm = lazy(() => import("./EditEventForm").catch(() => ({
 })));
 
 interface Props {
+  loadSummary?: LoadAttendanceSummary;
   changeEventState?: (id: string, action: EventLifecycleAction, input: { expectedVersion: number }, signal: AbortSignal) => Promise<ApiEvent>;
   sendCsv?: RegistrationCsvFormProps["send"];
   lookupCsv?: RegistrationCsvFormProps["lookup"];
@@ -66,7 +68,7 @@ export default function MyEvents(props: Props) {
   return props.enabled ? <EventBrowser key={props.accountKey} {...props} /> : null;
 }
 
-function EventBrowser({ changeEventState, issueCredential, onCredentialSensitiveChange, searchRegistrations, sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
+function EventBrowser({ loadSummary, changeEventState, issueCredential, onCredentialSensitiveChange, searchRegistrations, sendCsv, lookupCsv, accountKey, loadPage, loadDetail, saveEvent, registerAttendee, loadRegistrations, loadRegistrationDetail, uncertainRegistrationIds, onRegistrationUncertain, onEditingChange, onAccessInvalidated }: Props) {
   const [items, setItems] = useState<ApiEvent[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -242,6 +244,7 @@ function EventBrowser({ changeEventState, issueCredential, onCredentialSensitive
       <dt>Slug</dt><dd>{detail.slug}</dd>
       <dt>Identificador</dt><dd>{detail.id}</dd>
     </dl>
+      {loadSummary && <AttendanceSummary eventId={detail.id} timezone={detail.timezone} load={loadSummary} onFailure={failure => { if (failure.kind === "not_found") { setDetail(null); setItems([]); } failed(failure); }} />}
       {changeEventState && (detail.status === "draft" || detail.status === "active") && <button type="button"
         disabled={busy || lifecycleRefresh} onClick={() => void transition()}>{detail.status === "draft" ? "Activar evento" : "Cerrar evento"}</button>}
       {sendCsv && lookupCsv && <button type="button" disabled={busy || lifecycleRefresh} onClick={() => void open(detail.id, undefined, "csv")}>{detail.status === "draft" || detail.status === "active" ? "Importar CSV" : "Recuperar importación CSV"}</button>}

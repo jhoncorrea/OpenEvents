@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { getAttendanceSummary } from "./api-attendance-summary";
+vi.mock("./api-attendance-summary", async original => ({ ...await original<typeof import("./api-attendance-summary")>(), getAttendanceSummary: vi.fn() }));
 import { startQrCamera } from "./qr-camera";
 vi.mock("./qr-camera", async importOriginal => ({...await importOriginal<typeof import("./qr-camera")>(), startQrCamera: vi.fn()}));
 import { registerApiCheckIn } from "./api-check-in";
@@ -21,6 +23,7 @@ import {
 import { useMsal } from "@azure/msal-react";
 import {
   afterEach,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -194,8 +197,15 @@ async function expectCreationEnabled() {
   });
 }
 
+// These tests exercise session/CSV behavior, not cold module download speed.
+// Resolve the real lazy modules before the first findBy query starts its deadline.
+beforeAll(async () => {
+  await Promise.all([import("./MyEvents"), import("./CreateEventForm")]);
+});
+
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(getAttendanceSummary).mockImplementation(async ({eventId}) => ({eventId, registered:0, confirmed:0, cancelled:0, checkedIn:0, cancelledCheckedIn:0, pending:0, observedAt:"2026-09-26T21:00:00.000Z"}));
   window.sessionStorage.clear();
 
   vi.stubEnv(
@@ -1029,5 +1039,40 @@ describe("SessionControls credential integration", () => {
     vi.mocked(fetchApiIdentity).mockResolvedValue({ tenantId: account.tenantId, objectId: "object", subject: "operator", roles: ["checkin_operator"] });
     setup(); checkAccess(); await screen.findByText("Acceso a la API verificado.");
     expect(screen.queryByText("Emitir credencial")).toBeNull(); expect(screen.queryByRole("region", { name: "Mis eventos" })).toBeNull(); expect(issueApiRegistrationCredential).not.toHaveBeenCalled();
+  });
+});
+
+describe("SessionControls attendance metrics", () => {
+  async function openMetrics(role: "organizer" | "checkin_operator") {
+    vi.mocked(fetchApiIdentity).mockResolvedValue({ ...identity, roles: [role] });
+    vi.mocked(listApiEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });
+    vi.mocked(getApiEvent).mockResolvedValue(queriedEvent);
+    vi.mocked(listOperatorEvents).mockResolvedValue({ items: [queriedEvent], nextCursor: null });
+    vi.mocked(getOperatorEvent).mockResolvedValue(queriedEvent);
+    const view=setup(); checkAccess();
+    fireEvent.click(await screen.findByRole("button", {name:role==="organizer"?"Cargar eventos":"Cargar eventos asignados"}));
+    fireEvent.click(await screen.findByRole("button", {name:role==="organizer"?`Ver detalle de ${queriedEvent.name}`:`Seleccionar ${queriedEvent.name}`}));
+    await waitFor(()=>expect(getAttendanceSummary).toHaveBeenCalled());
+    return view;
+  }
+  it.each(["organizer", "checkin_operator"] as const)("passes current account and selected event for %s",async role=>{
+    const view=await openMetrics(role);await screen.findByText("0 confirmadas · 0 canceladas");
+    expect(getAttendanceSummary).toHaveBeenCalledWith(expect.objectContaining({instance:view.instance,account,eventId:queriedEvent.id,apiScope:"api://44444444-4444-4444-8444-444444444444/access_as_user",signal:expect.any(AbortSignal),isCurrent:expect.any(Function)}));
+    fireEvent.click(screen.getByText("Actualizar métricas"));await waitFor(()=>expect(getAttendanceSummary).toHaveBeenCalledTimes(2));
+  });
+  it.each(["account", "logout", "interaction"])("discards late summary on %s",async change=>{
+    const pending=deferred<Awaited<ReturnType<typeof getAttendanceSummary>>>();vi.mocked(getAttendanceSummary).mockReturnValue(pending.promise);
+    const view=await openMetrics("checkin_operator");const options=vi.mocked(getAttendanceSummary).mock.calls[0][0];
+    if(change==="account")view.switchAccount({...account,homeAccountId:"other"});
+    else if(change==="logout")fireEvent.click(screen.getByRole("button",{name:"Cerrar sesión"}));
+    else view.setProgress(InteractionStatus.AcquireToken);
+    expect(options.signal?.aborted).toBe(true);
+    await act(async()=>pending.resolve({eventId:queriedEvent.id,registered:11,confirmed:11,cancelled:0,checkedIn:0,cancelledCheckedIn:0,pending:11,observedAt:"2026-09-26T21:00:00.000Z"}));
+    expect(screen.queryByText("11 confirmadas · 0 canceladas")).toBeNull();
+  });
+  it("invalidates operator session after summary access is revoked",async()=>{
+    vi.mocked(getAttendanceSummary).mockRejectedValue(new EventQueryError("forbidden"));await openMetrics("checkin_operator");
+    await waitFor(()=>expect(screen.queryByText("Actualizar métricas")).toBeNull());
+    expect(screen.queryByText("Registrados")).toBeNull();
   });
 });

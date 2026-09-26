@@ -77,14 +77,14 @@ export default function App() {
 
         <div className="event-status">
           <span className="status-dot" />
-          <div><strong>Evento activo</strong><span>Puertas abiertas</span></div>
+          <div><strong>Vista de demostración</strong><span>Selecciona un evento en tu sesión</span></div>
         </div>
       </aside>
 
       <main id="top" className="main-content">
         <header className="topbar">
           <div>
-            <p className="eyebrow">CENTRO DE CONTROL</p>
+            <p className="eyebrow">CENTRO DE CONTROL · DEMOSTRACIÓN</p>
             <h1>DevOpsDays Lima 2027</h1>
           </div>
           <div className="event-meta">
@@ -95,17 +95,7 @@ export default function App() {
 
         <SessionControls />
 
-        <section className="stats-grid" aria-label="Resumen de asistencia">
-          <article className="stat-card">
-            <span>Registrados</span><strong>240</strong><small>Lista confirmada</small>
-          </article>
-          <article className="stat-card featured">
-            <span>Ingresaron</span><strong>168</strong><small>70% de asistencia</small>
-          </article>
-          <article className="stat-card">
-            <span>Pendientes</span><strong>72</strong><small>30% por ingresar</small>
-          </article>
-        </section>
+        <p>Demostración: las secciones siguientes usan datos de ejemplo. Consulta las métricas reales al seleccionar un evento en tu sesión.</p>
 
         <div className="workspace-grid">
           <section id="check-in" className="checkin-panel">
@@ -139,7 +129,7 @@ export default function App() {
           </section>
 
           <section id="activity" className="activity-panel">
-            <div className="activity-header"><div><p className="eyebrow">EN VIVO</p><h2>Últimos ingresos</h2></div><span className="live-pill">Actualizado</span></div>
+            <div className="activity-header"><div><p className="eyebrow">DEMOSTRACIÓN</p><h2>Últimos ingresos</h2></div><span className="live-pill">Datos de ejemplo</span></div>
             <div className="activity-list">
               {activity.map((item) => (
                 <article key={item.name}>

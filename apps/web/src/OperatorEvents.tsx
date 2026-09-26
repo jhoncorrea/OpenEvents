@@ -1,3 +1,4 @@
+import AttendanceSummary, { type LoadAttendanceSummary } from "./AttendanceSummary";
 import RegistrationAttendance from "./RegistrationAttendance";
 import OperatorCheckIn, { type SubmitCheckIn } from "./OperatorCheckIn";
 import { CheckInError } from "./check-in-error";
@@ -9,6 +10,7 @@ import { RegistrationQueryError } from "./registration-query-error";
 import "./operator-events.css";
 
 interface Props {
+  loadSummary?: LoadAttendanceSummary;
   submitCheckIn?: SubmitCheckIn;
   accountKey: string; enabled: boolean;
   loadPage: (cursor: string | undefined, signal: AbortSignal) => Promise<OperatorEventPage>;
@@ -20,7 +22,7 @@ const statuses = { draft: "Borrador", active: "Activo", closed: "Cerrado", cance
 export default function OperatorEvents(props: Props) {
   return props.enabled ? <Browser key={props.accountKey} {...props} /> : null;
 }
-function Browser({ submitCheckIn, loadPage, loadDetail, searchPage, onAccessInvalidated }: Props) {
+function Browser({ loadSummary, submitCheckIn, loadPage, loadDetail, searchPage, onAccessInvalidated }: Props) {
   const [checkInBlocked, setCheckInBlocked] = useState(false);
   const [events, setEvents] = useState<OperatorEvent[]>([]);
   const [eventCursor, setEventCursor] = useState<string | null>(null);
@@ -104,6 +106,7 @@ function Browser({ submitCheckIn, loadPage, loadDetail, searchPage, onAccessInva
       <button type="button" onClick={() => { cancel(); setEvent(null); resetSearch(); setError(""); }}>Volver a eventos asignados</button>
       <h3>{event.name}</h3><p>{event.location} · {statuses[event.status]}</p>
       <p>{new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short", timeZone: event.timezone }).format(new Date(event.startsAt))} – {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short", timeZone: event.timezone }).format(new Date(event.endsAt))} ({event.timezone})</p>
+      {loadSummary && <AttendanceSummary eventId={event.id} timezone={event.timezone} load={loadSummary} onFailure={failed} />}
       {submitCheckIn && event.status === "active" && !checkInBlocked && <OperatorCheckIn key={event.id} eventId={event.id} timezone={event.timezone} submit={submitCheckIn} onFailure={failed} />}
       {checkInBlocked && <button type="button" disabled={busy} onClick={() => select(event.id)}>Consultar estado actual</button>}
       <form onSubmit={e => { e.preventDefault(); search(); }}>
