@@ -748,3 +748,7 @@ El consumidor de POST /api/v1/events/:eventId/check-ins puede enviar source qr t
 ## Asistencia en las consultas de inscripciones (#87)
 
 Listado, detalle y búsqueda incluyen checkedInAt obligatorio: string UTC canónico con milisegundos o null si no existe check_in. No altera status confirmed/cancelled ni el contrato POST de registro. Omisión o fecha mal formada es invalid_response en la web. Se mantienen permisos y paginación; no se expone performedBy. Véase [asistencia](registration-attendance.md).
+
+### Resumen de asistencia (Issue #89)
+
+GET /api/v1/events/:eventId/attendance-summary permite a organizer o checkin_operator con usuario activo y asignación compatible consultar contadores persistidos, sin datos personales ni secretos. pending excluye canceladas; checkedIn conserva ingresos históricos y cancelledCheckedIn los desglosa. Una sentencia produce todos los contadores y observedAt UTC; no-store también en errores. Sin cambios en admisión ni web. Contrato y límites: [attendance-summary.md](attendance-summary.md); ADR-088.
