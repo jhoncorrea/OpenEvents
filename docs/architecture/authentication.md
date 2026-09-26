@@ -468,3 +468,8 @@ La fecha se incluye únicamente en las consultas de inscripciones ya autorizadas
 ### Resumen de asistencia (Issue #89)
 
 GET /api/v1/events/:eventId/attendance-summary permite a organizer o checkin_operator con usuario activo y asignación compatible consultar contadores persistidos, sin datos personales ni secretos. pending excluye canceladas; checkedIn conserva ingresos históricos y cancelledCheckedIn los desglosa. Una sentencia produce todos los contadores y observedAt UTC; no-store también en errores. Sin cambios en admisión ni web. Contrato y límites: [attendance-summary.md](attendance-summary.md); ADR-088.
+
+
+### Métricas web por evento (Issue #91)
+
+El detalle autorizado consulta métricas con cuenta y scope vigentes. Cancelación y descarte de respuestas al salir/cambiar contexto; pérdida de acceso retira cifras. Después de ingresar se usa Actualizar métricas, sin incremento optimista ni polling. Contrato y límites: [attendance-summary-web.md](attendance-summary-web.md).

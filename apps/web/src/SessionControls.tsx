@@ -240,6 +240,19 @@ function AccountControls({
     }
   }
 
+  async function attendanceSummary(eventId: string, signal: AbortSignal) {
+    const current = () => !signal.aborted && isCurrentAccount();
+    if (!current()) throw new EventQueryError("cancelled");
+    if (!account || (!canCreate && !canOperate) || busy || operationLock.current) throw new EventQueryError("unauthorized");
+    let config;
+    try { config = parseAuthConfig(import.meta.env); } catch { throw new EventQueryError("configuration"); }
+    let client;
+    try { client = await import("./api-attendance-summary"); } catch { throw new EventQueryError("configuration"); }
+    if (!current()) throw new EventQueryError("cancelled");
+    return client.getAttendanceSummary({ instance, account, apiScope: config.apiScope,
+      apiUrl: import.meta.env.VITE_API_URL ?? "", eventId, signal, isCurrent: current });
+  }
+
   function operatorOptions(signal: AbortSignal) {
     if (signal.aborted || !isCurrentAccount()) throw new EventQueryError("cancelled");
     if (!account || !canOperate || busy || operationLock.current) throw new EventQueryError("unauthorized");
@@ -572,7 +585,7 @@ function AccountControls({
       {account && canOperate && !busy && (
         <Suspense fallback={<p role="status">Cargando eventos asignados…</p>}>
           <OperatorEvents accountKey={accountKey(account)} enabled={canOperate && !busy}
-            submitCheckIn={operatorCheckIn} loadPage={operatorPage} loadDetail={operatorDetail} searchPage={operatorSearch}
+            loadSummary={attendanceSummary} submitCheckIn={operatorCheckIn} loadPage={operatorPage} loadDetail={operatorDetail} searchPage={operatorSearch}
             onAccessInvalidated={() => { if (isCurrentAccount()) invalidateAccess(); }} />
         </Suspense>
       )}
@@ -583,6 +596,7 @@ function AccountControls({
             enabled={canCreate && !busy}
             loadPage={queryEvents}
             loadDetail={queryDetail}
+            loadSummary={attendanceSummary}
             saveEvent={handleEdit}
             changeEventState={handleLifecycle}
             sendCsv={(id, key, bytes, signal) => csvOperation(id, key, signal, bytes)}
