@@ -1,3 +1,4 @@
+import { queryAttendanceSummary } from "./modules/events/query-attendance-summary.js";
 import { activateEventForOrganizer, closeEventForOrganizer } from "./modules/events/change-event-state-for-organizer.js";
 import { registerCheckInForOperator } from "./modules/registrations/register-check-in-for-operator.js";
 import { listEventsForOperator, getEventForOperator } from "./modules/events/query-events-for-operator.js";
@@ -36,6 +37,7 @@ const database = createDatabaseConnection({
 
 const app = buildApp({
   logger: true,
+  attendanceSummary: (id, actor) => queryAttendanceSummary(database.db, id, actor),
   eventLifecycle: {
     activate: (id, input, actor) => activateEventForOrganizer(database.db, id, input, actor),
     close: (id, input, actor) => closeEventForOrganizer(database.db, id, input, actor),

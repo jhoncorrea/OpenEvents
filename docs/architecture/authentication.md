@@ -464,3 +464,7 @@ La cámara vive dentro del detalle activo asignado al operador. Salir, perder ac
 ## Estado de asistencia en lecturas (#87)
 
 La fecha se incluye únicamente en las consultas de inscripciones ya autorizadas. El listado y detalle requieren organizador asignado; búsqueda admite organizador u operador con rol y asignación compatibles. Un ingreso en otro evento no concede visibilidad y no se expone la identidad de quien lo realizó. Se conservan controles de sesión y descarte de respuestas tardías de la web.
+
+### Resumen de asistencia (Issue #89)
+
+GET /api/v1/events/:eventId/attendance-summary permite a organizer o checkin_operator con usuario activo y asignación compatible consultar contadores persistidos, sin datos personales ni secretos. pending excluye canceladas; checkedIn conserva ingresos históricos y cancelledCheckedIn los desglosa. Una sentencia produce todos los contadores y observedAt UTC; no-store también en errores. Sin cambios en admisión ni web. Contrato y límites: [attendance-summary.md](attendance-summary.md); ADR-088.

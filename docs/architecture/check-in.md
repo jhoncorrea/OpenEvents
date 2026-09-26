@@ -79,3 +79,7 @@ El recorrido manual de #83 se integró mediante PR #84, merge 1abee74, con CI ve
 ## Consulta del ingreso en inscripciones (#87)
 
 El ingreso persistido se muestra como Ya ingresó y su fecha original, separado del estado de inscripción. Un duplicado no modifica esa fecha. La búsqueda del operador se actualiza con Repetir búsqueda; el organizador actualiza su listado o vuelve a consultar el detalle. No se registra un ingreso desde esas consultas ni se cambian las reglas de acceso. Véase [asistencia](registration-attendance.md).
+
+### Resumen de asistencia (Issue #89)
+
+GET /api/v1/events/:eventId/attendance-summary permite a organizer o checkin_operator con usuario activo y asignación compatible consultar contadores persistidos, sin datos personales ni secretos. pending excluye canceladas; checkedIn conserva ingresos históricos y cancelledCheckedIn los desglosa. Una sentencia produce todos los contadores y observedAt UTC; no-store también en errores. Sin cambios en admisión ni web. Contrato y límites: [attendance-summary.md](attendance-summary.md); ADR-088.

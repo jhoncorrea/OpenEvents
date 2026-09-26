@@ -1,6 +1,6 @@
 # ADR-087: Asistencia separada del estado de inscripción
 
-Estado: propuesto en issue #87; pendiente de integración.
+Estado: aceptado e integrado mediante PR #88, merge 56893b3.
 
 ## Contexto
 
